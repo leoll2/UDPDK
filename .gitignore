@@ -1,0 +1,6 @@
+**/*.marker
+**/*.o
+**/*.ro
+**/*cmake*
+**/CMakeLists.txt
+build/
