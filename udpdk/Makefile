@@ -10,12 +10,14 @@ PREFIX_INCLUDE=/usr/local/include
 PREFIX_BIN=/usr/local/bin
 UDPDK_VERSION=0.1
 
+# root is only needed to perform install
+ifneq ($(shell id -u), 0)
 ifeq ($(RTE_SDK),)
 $(error "Please define RTE_SDK environment variable")
 endif
-
 ifeq ($(RTE_TARGET),)
 $(error "Please define RTE_TARGET environment variable")
+endif
 endif
 
 UDPDK_DPDK=${RTE_SDK}/${RTE_TARGET}
@@ -43,6 +45,7 @@ OBJS+= $(patsubst %.c,%.o,${SRCS})
 
 all: libudpdk.a
 
+# Export only symbols defined in the UDPDK API (also exclude DPDK symbols)
 libudpdk.a: ${OBJS}
 	${LD} -d -r -o $*.ro ${OBJS}
 	nm $*.ro  | grep -v ' U ' | cut -d ' ' -f 3 > $*_localize_list.tmp
@@ -65,12 +68,15 @@ install:
 	rm -rf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	rm -rf ${PREFIX_LIB}/libudpdk.a
 	rm -rf ${PREFIX_INCLUDE}/udpdk_api.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_constants.h
 
 	cp -f libudpdk.a ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	ln -sf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION} ${PREFIX_LIB}/libudpdk.a
 	cp -f udpdk_api.h ${PREFIX_INCLUDE}/udpdk_api.h
+	cp -f udpdk_api.h ${PREFIX_INCLUDE}/udpdk_constants.h
 
 uninstall:
 	rm -rf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	rm -rf ${PREFIX_LIB}/libudpdk.a
 	rm -rf ${PREFIX_INCLUDE}/udpdk_api.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_constants.h
