@@ -37,7 +37,8 @@ UDPDK_C= ${CC} -c $(DPDK_CFLAGS) ${CFLAGS} ${WERROR} $<
 
 UDPDK_SRCS+=         \
 	udpdk_syscall.c  \
-	udpdk_init.c
+	udpdk_init.c     \
+	udpdk_poller.c
 
 SRCS= ${UDPDK_SRCS}
 

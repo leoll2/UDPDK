@@ -2,6 +2,12 @@
 // Created by leoll2 on 9/25/20.
 // Copyright (c) 2020 Leonardo Lai. All rights reserved.
 //
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <rte_common.h>
 #include <rte_eal.h>
@@ -15,6 +21,7 @@
 
 #include "udpdk_api.h"
 #include "udpdk_constants.h"
+#include "udpdk_poller.h"
 
 #define RTE_LOGTYPE_INIT RTE_LOGTYPE_USER1
 
@@ -39,6 +46,8 @@ struct exch_slot {
 struct exch_slot *exch_slots = NULL;
 
 static struct rte_mempool *pktmbuf_pool;
+
+static pid_t poller_pid;
 
 // TODO move to a utility file
 enum exch_ring_func {EXCH_RING_RX, EXCH_RING_TX};
@@ -227,67 +236,100 @@ static int init_exchange_slots(void)
     return 0;
 }
 
-/* Initialize DPDK */
+/* Initialize UDPDK */
 int udpdk_init(int argc, char *argv[])
 {
     int retval;
 
-    // Initialize EAL (returns how many arguments it consumed)
-    retval = rte_eal_init(argc, argv);
-    if (retval < 0) {
-        RTE_LOG(ERR, INIT, "Cannot initialize EAL\n");
-        return -1;
-    }
-    argc -= retval;
-    argv += retval;
+    // Start the secondary process
+    poller_pid = fork();
+    if (poller_pid != 0) {
+        // application
 
-    // Initialize pool of mbuf
-    retval = init_mbuf_pool();
-    if (retval < 0) {
-        RTE_LOG(ERR, INIT, "Cannot initialize pool of mbufs\n");
-        return -1;
-    }
-
-    // Initialize DPDK ports
-    retval = init_port(PORT_RX);
-    if (retval < 0) {
-        RTE_LOG(ERR, INIT, "Cannot initialize RX port %d\n", PORT_RX);
-        return -1;
-    }
-    check_port_link_status(PORT_RX);
-
-    if (PORT_TX != PORT_RX) {
-        retval = init_port(PORT_TX);
+        // Initialize EAL (returns how many arguments it consumed)
+        retval = rte_eal_init(argc, argv);
         if (retval < 0) {
-            RTE_LOG(ERR, INIT, "Cannot initialize TX port %d\n", PORT_TX);
+            RTE_LOG(ERR, INIT, "Cannot initialize EAL\n");
             return -1;
         }
-        check_port_link_status(PORT_TX);
+        argc -= retval;
+        argv += retval;
+
+        // Initialize pool of mbuf
+        retval = init_mbuf_pool();
+        if (retval < 0) {
+            RTE_LOG(ERR, INIT, "Cannot initialize pool of mbufs\n");
+            return -1;
+        }
+
+        // Initialize DPDK ports
+        retval = init_port(PORT_RX);
+        if (retval < 0) {
+            RTE_LOG(ERR, INIT, "Cannot initialize RX port %d\n", PORT_RX);
+            return -1;
+        }
+        check_port_link_status(PORT_RX);
+
+        if (PORT_TX != PORT_RX) {
+            retval = init_port(PORT_TX);
+            if (retval < 0) {
+                RTE_LOG(ERR, INIT, "Cannot initialize TX port %d\n", PORT_TX);
+                return -1;
+            }
+            check_port_link_status(PORT_TX);
+        } else {
+            RTE_LOG(INFO, INIT, "Using the same port for RX and TX\n");
+        }
+
+        // Initialize memzone for exchange
+        retval = init_shared_memzone();
+        if (retval < 0) {
+            RTE_LOG(ERR, INIT, "Cannot initialize memzone for exchange zone descriptors\n");
+            return -1;
+        }
+
+        retval = init_exchange_slots();
+        if (retval < 0) {
+            RTE_LOG(ERR, INIT, "Cannot initialize exchange slots\n");
+            return -1;
+        }
+        // TODO initialize shared structures
     } else {
-        RTE_LOG(INFO, INIT, "Using the same port for RX and TX\n");
+        // child -> packet poller
+        // TODO the arguments should come from a config rather than being hardcoded
+        int poller_argc = 6;
+        char *poller_argv[6] = {
+                "./testapp",
+                "-l",
+                "3-4",
+                "-n",
+                "2",
+                "--proc-type=secondary"
+        };
+        sleep(1);   // TODO use some synchronization mechanism between primary and secondary
+        if (poller_init(poller_argc, poller_argv) < 0) {
+            return -1;
+        }
+        poller_body();
     }
-
-    // Initialize memzone for exchange
-    retval = init_shared_memzone();
-    if (retval < 0) {
-        RTE_LOG(ERR, INIT, "Cannot initialize memzone for exchange zone descriptors\n");
-        return -1;
-    }
-
-    retval = init_exchange_slots();
-    if (retval < 0) {
-        RTE_LOG(ERR, INIT, "Cannot initialize exchange slots\n");
-        return -1;
-    }
-    // TODO initialize shared structures
-
-    // TODO start the secondary process
+    // The parent process (application) returns immediately from init; instead, poller doesn't till it dies (or error)
     return 0;
 }
 
 void udpdk_cleanup(void)
 {
     uint16_t port_id;
+    pid_t pid;
+
+    // Kill the poller process
+    RTE_LOG(INFO, INIT, "Killing the poller process (%d)...\n", poller_pid);
+    kill(poller_pid, SIGTERM);
+    pid = waitpid(poller_pid, NULL, 0);
+    if (pid < 0) {
+        RTE_LOG(WARNING, INIT, "Failed killing the poller process\n");
+    } else {
+        RTE_LOG(INFO, INIT, "...killed!\n");
+    }
 
     // Stop and close DPDK ports
     RTE_ETH_FOREACH_DEV(port_id) {
