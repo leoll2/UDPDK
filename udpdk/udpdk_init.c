@@ -22,35 +22,17 @@
 #include "udpdk_api.h"
 #include "udpdk_constants.h"
 #include "udpdk_poller.h"
+#include "udpdk_types.h"
 
 #define RTE_LOGTYPE_INIT RTE_LOGTYPE_USER1
 
-struct exch_slot_info {
-    int active;
-    int sockfd;
-} __rte_cache_aligned;
-
-struct exch_zone_info {
-    uint64_t n_zones_active;
-    struct exch_slot_info slots[NUM_SOCKETS_MAX];
-};
-
-struct exch_zone_info *exch_zone_desc = NULL;
-
-struct exch_slot {
-    struct rte_ring *rx_q;
-    struct rte_ring *tx_q;
-    unsigned id;
-};
+static struct exch_zone_info *exch_zone_desc = NULL;
 
 struct exch_slot *exch_slots = NULL;
 
 static struct rte_mempool *pktmbuf_pool;
 
 static pid_t poller_pid;
-
-// TODO move to a utility file
-enum exch_ring_func {EXCH_RING_RX, EXCH_RING_TX};
 
 /* Get the name of the rings of exchange slots */
 static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func func)
