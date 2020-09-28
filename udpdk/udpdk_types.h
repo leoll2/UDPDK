@@ -6,7 +6,7 @@
 #ifndef UDPDK_TYPES_H
 #define UDPDK_TYPES_H
 
-#include <rte_common.h>
+//#include <rte_common.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_launch.h>
@@ -25,8 +25,9 @@
 enum exch_ring_func {EXCH_RING_RX, EXCH_RING_TX};
 
 struct exch_slot_info {
-    int active;
-    int sockfd;
+    int used;       // used by an open socket
+    int bound;      // used by a socket that did 'bind'
+    int sockfd;     // TODO redundant because it matches the slot index in this implementation
 } __rte_cache_aligned;
 
 struct exch_zone_info {

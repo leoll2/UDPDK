@@ -38,7 +38,10 @@ UDPDK_C= ${CC} -c $(DPDK_CFLAGS) ${CFLAGS} ${WERROR} $<
 UDPDK_SRCS+=         \
 	udpdk_syscall.c  \
 	udpdk_init.c     \
-	udpdk_poller.c
+	udpdk_poller.c   \
+	udpdk_lookup_table.c \
+	udpdk_globals.c  \
+
 
 SRCS= ${UDPDK_SRCS}
 
@@ -70,14 +73,25 @@ install:
 	rm -rf ${PREFIX_LIB}/libudpdk.a
 	rm -rf ${PREFIX_INCLUDE}/udpdk_api.h
 	rm -rf ${PREFIX_INCLUDE}/udpdk_constants.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_poller.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_types.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_lookup_table.h
 
 	cp -f libudpdk.a ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	ln -sf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION} ${PREFIX_LIB}/libudpdk.a
 	cp -f udpdk_api.h ${PREFIX_INCLUDE}/udpdk_api.h
-	cp -f udpdk_api.h ${PREFIX_INCLUDE}/udpdk_constants.h
+	cp -f udpdk_constants.h ${PREFIX_INCLUDE}/udpdk_constants.h
+	cp -f udpdk_lookup_table.h ${PREFIX_INCLUDE}/udpdk_lookup_table.h
+	cp -f udpdk_poller.h ${PREFIX_INCLUDE}/udpdk_poller.h
+	cp -f udpdk_types.h ${PREFIX_INCLUDE}/udpdk_types.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_types.h
 
 uninstall:
 	rm -rf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	rm -rf ${PREFIX_LIB}/libudpdk.a
 	rm -rf ${PREFIX_INCLUDE}/udpdk_api.h
 	rm -rf ${PREFIX_INCLUDE}/udpdk_constants.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_poller.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_types.h
+	rm -rf ${PREFIX_INCLUDE}/udpdk_lookup_table.h
+

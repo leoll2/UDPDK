@@ -25,14 +25,16 @@
 #include <rte_string_fns.h>
 
 #include "udpdk_constants.h"
+#include "udpdk_lookup_table.h"
 #include "udpdk_types.h"
 
 #define RTE_LOGTYPE_POLLINIT RTE_LOGTYPE_USER1
 
 static volatile int poller_alive = 1;
 
-static struct exch_zone_info *exch_zone_desc = NULL;
+extern struct exch_zone_info *exch_zone_desc;
 static struct exch_slot exch_slots[NUM_SOCKETS_MAX];
+extern htable_item *udp_port_table;
 
 /* Descriptor of a RX queue */
 struct rx_queue {
@@ -125,6 +127,19 @@ static int setup_exch_zone(void)
     return 0;
 }
 
+static int setup_udp_table(void)
+{
+    const struct rte_memzone *udp_port_table_mz;
+
+    udp_port_table_mz = rte_memzone_lookup(UDP_PORT_TABLE_NAME);
+    if (udp_port_table_mz == NULL) {
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve exchange memzone descriptor\n");
+        return -1;
+    }
+    udp_port_table = udp_port_table_mz->addr;
+    return 0;
+}
+
 /* Initialize UDPDK packet poller (runs in a separate process) */
 int poller_init(int argc, char *argv[])
 {
@@ -138,16 +153,23 @@ int poller_init(int argc, char *argv[])
     }
 
     // Setup RX/TX queues
-    setup_queues();
+    retval = setup_queues();
     if (retval < 0) {
         RTE_LOG(ERR, POLLINIT, "Cannot setup queues for poller\n");
         return -1;
     }
 
     // Setup buffers for exchange slots
-    setup_exch_zone();
+    retval = setup_exch_zone();
     if (retval < 0) {
         RTE_LOG(ERR, POLLINIT, "Cannot setup exchange zone for poller\n");
+        return -1;
+    }
+
+    // Setup table for UDP port switching
+    retval = setup_udp_table();
+    if (retval < 0) {
+        RTE_LOG(ERR, POLLINIT, "Cannot setup table for UDP port switching\n");
         return -1;
     }
 
@@ -320,7 +342,7 @@ void poller_body(void)
 
             // Effectively flush the packets to exchange buffers
             for (i = 0; i < NUM_SOCKETS_MAX; i++) {
-                if (exch_zone_desc->slots[i].active) {
+                if (exch_zone_desc->slots[i].used) {
                     flush_rx_queue(i);
                 }
             }

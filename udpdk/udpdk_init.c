@@ -21,17 +21,16 @@
 
 #include "udpdk_api.h"
 #include "udpdk_constants.h"
+#include "udpdk_lookup_table.h"
 #include "udpdk_poller.h"
 #include "udpdk_types.h"
 
 #define RTE_LOGTYPE_INIT RTE_LOGTYPE_USER1
 
-static struct exch_zone_info *exch_zone_desc = NULL;
-
+extern struct exch_zone_info *exch_zone_desc;
 struct exch_slot *exch_slots = NULL;
-
+extern htable_item *udp_port_table;
 static struct rte_mempool *pktmbuf_pool;
-
 static pid_t poller_pid;
 
 /* Get the name of the rings of exchange slots */
@@ -181,8 +180,10 @@ static int init_shared_memzone(void)
     const struct rte_memzone *mz;
 
     mz = rte_memzone_reserve(EXCH_MEMZONE_NAME, sizeof(*exch_zone_desc), rte_socket_id(), 0);
-    if (mz == NULL)
+    if (mz == NULL) {
+        RTE_LOG(ERR, INIT, "Cannot allocate shared memory for exchange slot descriptors\n");
         return -1;
+    }
     memset(mz->addr, 0, sizeof(*exch_zone_desc));
     exch_zone_desc = mz->addr;
 
@@ -190,6 +191,22 @@ static int init_shared_memzone(void)
     return 0;
 }
 
+/* Initialize table in shared memory for UDP port switching */
+static int init_udp_table(void)
+{
+    const struct rte_memzone *mz;
+
+    mz = rte_memzone_reserve(UDP_PORT_TABLE_NAME, NUM_SOCKETS_MAX * sizeof(htable_item), rte_socket_id(), 0);
+    if (mz == NULL) {
+        RTE_LOG(ERR, INIT, "Cannot allocate shared memory for UDP port switching table\n");
+        return -1;
+    }
+    udp_port_table = mz->addr;
+    htable_init(udp_port_table);
+    return 0;
+}
+
+/* Initialize slots to exchange packets between the application and the poller */
 static int init_exchange_slots(void)
 {
     // TODO allocate slots dynamically in udpdk_socket() instead of pre-allocating all them statically
@@ -267,6 +284,12 @@ int udpdk_init(int argc, char *argv[])
         retval = init_shared_memzone();
         if (retval < 0) {
             RTE_LOG(ERR, INIT, "Cannot initialize memzone for exchange zone descriptors\n");
+            return -1;
+        }
+
+        retval = init_udp_table();
+        if (retval < 0) {
+            RTE_LOG(ERR, INIT, "Cannot create table for UDP port switching\n");
             return -1;
         }
 
