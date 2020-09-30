@@ -9,3 +9,5 @@
 htable_item *udp_port_table = NULL;
 
 struct exch_zone_info *exch_zone_desc = NULL;
+
+struct exch_slot *exch_slots = NULL;

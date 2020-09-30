@@ -28,7 +28,7 @@
 #define RTE_LOGTYPE_INIT RTE_LOGTYPE_USER1
 
 extern struct exch_zone_info *exch_zone_desc;
-struct exch_slot *exch_slots = NULL;
+extern struct exch_slot *exch_slots;
 extern htable_item *udp_port_table;
 static struct rte_mempool *pktmbuf_pool;
 static pid_t poller_pid;

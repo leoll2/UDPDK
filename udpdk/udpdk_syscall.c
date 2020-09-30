@@ -13,6 +13,7 @@
 
 extern htable_item *udp_port_table;
 extern struct exch_zone_info *exch_zone_desc;
+extern struct exch_slot *exch_slots;
 
 static int socket_validate_args(int domain, int type, int protocol)
 {
@@ -132,11 +133,96 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     return 0;
 }
 
+static int recvfrom_validate_args(int s, void *buf, size_t len, int flags,
+                                  struct sockaddr *src_addr, socklen_t *addrlen)
+{
+    // Ensure sockfd is not beyond max limit
+    if (s >= NUM_SOCKETS_MAX) {
+        errno = ENOTSOCK;
+        return -1;
+    }
+
+    // Check if the sockfd is valid
+    if (!exch_zone_desc->slots[s].used) {
+        errno = EBADF;
+        return -1;
+    }
+
+    // TODO check if buf is a legit address
+
+    // Check if flags are supported (atm none is supported)
+    if (flags != 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    // If buf is null, then addrlen must be null too
+    if (buf == NULL && addrlen != NULL) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
+}
+
 ssize_t udpdk_recvfrom(int s, void *buf, size_t len, int flags,
                        struct sockaddr *src_addr, socklen_t *addrlen)
 {
-    // TODO implement
-    return 0;
+    int ret = 0;
+    struct rte_mbuf *pkt = NULL;
+    uint32_t pkt_len;
+    uint32_t udp_data_len;
+    uint32_t eff_len;
+    uint32_t eff_addrlen;
+    struct rte_ether_hdr *eth_hdr;
+    struct rte_ipv4_hdr *ip_hdr;
+    struct rte_udp_hdr *udp_hdr;
+    void *udp_data;
+
+    // Validate the arguments
+    if (recvfrom_validate_args(s, buf, len, flags, src_addr, addrlen) < 0) {
+        return -1;
+    }
+
+    // Dequeue one packet (busy wait until one is available)
+    while (ret != 0) {
+        ret = rte_ring_dequeue(exch_slots[s].rx_q, (void **)&pkt);
+    }
+    // Get some useful pointers to headers and data
+    pkt_len = pkt->pkt_len;
+    eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+    ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+    udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
+    udp_data = (void *)(udp_hdr + 1);
+    udp_data_len = pkt_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
+
+    // If the provided buffer is large enough to store it, then copy the whole packet, else only part of it
+    if (udp_data_len >= len) {
+        eff_len = udp_data_len;
+    } else {
+        eff_len = len;
+    }
+
+    // Copy the data to the buffer provided by the user
+    memcpy(buf, udp_data, eff_len);
+
+    // Write source address (or part of it if addrlen is too short)
+    if (src_addr != NULL) {
+        struct sockaddr_in addr_in;
+        memset(&addr_in, 0, sizeof(addr_in));
+        addr_in.sin_family = AF_INET;
+        addr_in.sin_port = rte_be_to_cpu_16(udp_hdr->src_port);
+        addr_in.sin_addr.s_addr = rte_be_to_cpu_32(ip_hdr->src_addr);
+        if (sizeof(addr_in) <= *addrlen) {
+            eff_addrlen = sizeof(addr_in);
+        } else {
+            eff_addrlen = *addrlen;
+        }
+        memcpy((void *)src_addr, &addr_in, eff_addrlen);
+        *addrlen = eff_addrlen;
+    }
+
+    // Return how many bytes read
+    return eff_len;
 }
 
 static int close_validate_args(int s)

@@ -33,7 +33,7 @@
 static volatile int poller_alive = 1;
 
 extern struct exch_zone_info *exch_zone_desc;
-static struct exch_slot exch_slots[NUM_SOCKETS_MAX];
+extern struct exch_slot *exch_slots;
 extern htable_item *udp_port_table;
 
 /* Descriptor of a RX queue */
