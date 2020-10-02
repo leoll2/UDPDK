@@ -18,6 +18,8 @@ extern "C" {
 
 int udpdk_init(int argc, char *argv[]);
 
+void udpdk_interrupt(int signum);
+
 void udpdk_cleanup(void);
 
 int udpdk_socket(int domain, int type, int protocol);

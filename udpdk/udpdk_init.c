@@ -26,7 +26,10 @@
 #include "udpdk_types.h"
 
 #define RTE_LOGTYPE_INIT RTE_LOGTYPE_USER1
+#define RTE_LOGTYPE_CLOSE RTE_LOGTYPE_USER1
+#define RTE_LOGTYPE_INTR RTE_LOGTYPE_USER1
 
+extern int interrupted;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern htable_item *udp_port_table;
@@ -218,8 +221,10 @@ static int init_exchange_slots(void)
 
     // Allocate enough memory to store the exchange slots
     exch_slots = rte_malloc(EXCH_SLOTS_NAME, sizeof(*exch_slots) * NUM_SOCKETS_MAX, 0);
-    if (exch_slots == NULL)
-        rte_exit(EXIT_FAILURE, "Cannot allocate memory for exchange slots\n");
+    if (exch_slots == NULL) {
+        RTE_LOG(ERR, INIT, "Cannot allocate memory for exchange slots\n");
+        return -1;
+    }
 
     // Create a rte_ring for each RX and TX slot
     for (i = 0; i < NUM_SOCKETS_MAX; i++) {
@@ -313,6 +318,7 @@ int udpdk_init(int argc, char *argv[])
         };
         sleep(1);   // TODO use some synchronization mechanism between primary and secondary
         if (poller_init(poller_argc, poller_argv) < 0) {
+            RTE_LOG(INFO, INIT, "Poller initialization failed\n");
             return -1;
         }
         poller_body();
@@ -321,19 +327,25 @@ int udpdk_init(int argc, char *argv[])
     return 0;
 }
 
+void udpdk_interrupt(int signum)
+{
+    RTE_LOG(INFO, INTR, "Killing the poller process (%d)...\n", poller_pid);
+    interrupted = 1;
+}
+
 void udpdk_cleanup(void)
 {
     uint16_t port_id;
     pid_t pid;
 
     // Kill the poller process
-    RTE_LOG(INFO, INIT, "Killing the poller process (%d)...\n", poller_pid);
+    RTE_LOG(INFO, CLOSE, "Killing the poller process (%d)...\n", poller_pid);
     kill(poller_pid, SIGTERM);
     pid = waitpid(poller_pid, NULL, 0);
     if (pid < 0) {
-        RTE_LOG(WARNING, INIT, "Failed killing the poller process\n");
+        RTE_LOG(WARNING, CLOSE, "Failed killing the poller process\n");
     } else {
-        RTE_LOG(INFO, INIT, "...killed!\n");
+        RTE_LOG(INFO, CLOSE, "...killed!\n");
     }
 
     // Stop and close DPDK ports

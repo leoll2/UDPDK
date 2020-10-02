@@ -6,11 +6,14 @@
 #include "errno.h"
 #include <netinet/in.h>
 
+#include <rte_log.h>
+
 #include "udpdk_api.h"
 #include "udpdk_lookup_table.h"
 
 #define RTE_LOGTYPE_SYSCALL RTE_LOGTYPE_USER1
 
+extern int interrupted;
 extern htable_item *udp_port_table;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
@@ -126,24 +129,60 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
     return 0;
 }
 
-ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
-                     const struct sockaddr *dest_addr, socklen_t addrlen)
-{
-    // TODO implement
-    return 0;
-}
-
-static int recvfrom_validate_args(int s, void *buf, size_t len, int flags,
-                                  struct sockaddr *src_addr, socklen_t *addrlen)
+static int sendto_validate_args(int sockfd, const void *buf, size_t len, int flags,
+                                const struct sockaddr *dest_addr, socklen_t addrlen)
 {
     // Ensure sockfd is not beyond max limit
-    if (s >= NUM_SOCKETS_MAX) {
+    if (sockfd >= NUM_SOCKETS_MAX) {
         errno = ENOTSOCK;
         return -1;
     }
 
     // Check if the sockfd is valid
-    if (!exch_zone_desc->slots[s].used) {
+    if (!exch_zone_desc->slots[sockfd].used) {
+        errno = EBADF;
+        return -1;
+    }
+
+    // TODO check if buf is a legit address
+
+    // Check if flags are supported (atm none is supported)
+    if (flags != 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    // Check if the sender is specified
+    if (dest_addr == NULL || addrlen == 0) {
+        errno = EINVAL;
+        return -1;
+    }
+    return 0;
+}
+
+ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
+                     const struct sockaddr *dest_addr, socklen_t addrlen)
+{
+    // Validate the arguments
+    if (sendto_validate_args(sockfd, buf, len, flags, dest_addr, addrlen) < 0) {
+        return -1;
+    }
+
+    // TODO implement core
+    return 0;
+}
+
+static int recvfrom_validate_args(int sockfd, void *buf, size_t len, int flags,
+                                  struct sockaddr *src_addr, socklen_t *addrlen)
+{
+    // Ensure sockfd is not beyond max limit
+    if (sockfd >= NUM_SOCKETS_MAX) {
+        errno = ENOTSOCK;
+        return -1;
+    }
+
+    // Check if the sockfd is valid
+    if (!exch_zone_desc->slots[sockfd].used) {
         errno = EBADF;
         return -1;
     }
@@ -164,10 +203,10 @@ static int recvfrom_validate_args(int s, void *buf, size_t len, int flags,
     return 0;
 }
 
-ssize_t udpdk_recvfrom(int s, void *buf, size_t len, int flags,
+ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
                        struct sockaddr *src_addr, socklen_t *addrlen)
 {
-    int ret = 0;
+    int ret = -1;
     struct rte_mbuf *pkt = NULL;
     uint32_t pkt_len;
     uint32_t udp_data_len;
@@ -178,14 +217,20 @@ ssize_t udpdk_recvfrom(int s, void *buf, size_t len, int flags,
     struct rte_udp_hdr *udp_hdr;
     void *udp_data;
 
+    printf("Inside recvfrom\n");
     // Validate the arguments
-    if (recvfrom_validate_args(s, buf, len, flags, src_addr, addrlen) < 0) {
+    if (recvfrom_validate_args(sockfd, buf, len, flags, src_addr, addrlen) < 0) {
         return -1;
     }
 
     // Dequeue one packet (busy wait until one is available)
-    while (ret != 0) {
-        ret = rte_ring_dequeue(exch_slots[s].rx_q, (void **)&pkt);
+    while (ret < 0 && !interrupted) {
+        ret = rte_ring_dequeue(exch_slots[sockfd].rx_q, (void **)&pkt);
+    }
+    if (interrupted) {
+        RTE_LOG(INFO, SYSCALL, "Recvfrom returning due to signal\n");
+        errno = EINTR;
+        return -1;
     }
     // Get some useful pointers to headers and data
     pkt_len = pkt->pkt_len;
@@ -194,6 +239,8 @@ ssize_t udpdk_recvfrom(int s, void *buf, size_t len, int flags,
     udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
     udp_data = (void *)(udp_hdr + 1);
     udp_data_len = pkt_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
+    printf("recfrom pktlen: %d\n", pkt_len);
+    printf("recfrom udp_data_len: %d\n", udp_data_len);
 
     // If the provided buffer is large enough to store it, then copy the whole packet, else only part of it
     if (udp_data_len >= len) {

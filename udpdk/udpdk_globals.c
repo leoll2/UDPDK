@@ -6,6 +6,8 @@
 #include "udpdk_lookup_table.h"
 #include "udpdk_types.h"
 
+volatile int interrupted = 0;
+
 htable_item *udp_port_table = NULL;
 
 struct exch_zone_info *exch_zone_desc = NULL;

@@ -112,18 +112,35 @@ static int setup_exch_zone(void)
 
     // Retrieve the exchange zone descriptor in shared memory
     mz = rte_memzone_lookup(EXCH_MEMZONE_NAME);
-    if (mz == NULL)
+    if (mz == NULL) {
         RTE_LOG(ERR, POLLINIT, "Cannot retrieve exchange memzone descriptor\n");
+        return -1;
+    }
     exch_zone_desc = mz->addr;
+
+    // Allocate enough memory to store the exchange slots
+    exch_slots = rte_zmalloc(EXCH_SLOTS_NAME, sizeof(*exch_slots) * NUM_SOCKETS_MAX, 0);
+    if (exch_slots == NULL) {
+        RTE_LOG(ERR, POLLINIT, "Cannot allocate memory for exchange slots\n");
+        return -1;
+    }
 
     for (i = 0; i < NUM_SOCKETS_MAX; i++) {
         // Retrieve the RX queue for each slot
         exch_slots[i].rx_q = rte_ring_lookup(get_exch_ring_name(i, EXCH_RING_RX));
-        if (exch_slots[i].rx_q == NULL)
+        if (exch_slots[i].rx_q == NULL) {
             RTE_LOG(ERR, POLLINIT, "Failed to retrieve rx ring queue for exchanger %u\n", i);
+            return -1;
+        }
+        // Retrieve the TX queue for each slot
+        exch_slots[i].tx_q = rte_ring_lookup(get_exch_ring_name(i, EXCH_RING_TX));
+        if (exch_slots[i].tx_q == NULL) {
+            RTE_LOG(ERR, POLLINIT, "Failed to retrieve tx ring queue for exchanger %u\n", i);
+            return -1;
+        }
+        // rx_buffer and rx_count are already zeroed thanks to zmalloc
     }
 
-    // TODO do the same for TX rings
     return 0;
 }
 
@@ -287,17 +304,17 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
             (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr)));
     ip_dst = get_ip_dst(ip_hdr);
 
+    char ip_str[16];                                    // TODO DEBUG
+    ipv4_int_to_str(ip_dst, ip_str);                    // TODO DEBUG
     printf("[DBG] UDP dest port: %d\n", udp_dst_port);  // TODO DEBUG
-    char ip_str[16];
-    ipv4_int_to_str(ip_dst, ip_str);
-    printf("[DBG] IP dest addr: %s\n", ip_str);
+    printf("[DBG] IP dest addr: %s\n", ip_str); // TODO DEBUG
 
     // TODO based on UDP, find the appropriate exchange buffer
     // TODO here enqueuing is a dummy round-robin, not based on actual port!
     if (foo & 1) {
-        enqueue_rx_packet(0, m);
-    } else {
         enqueue_rx_packet(1, m);
+    } else {
+        enqueue_rx_packet(0, m);
     }
 }
 
@@ -311,33 +328,49 @@ void poller_body(void)
     lcore_id = rte_lcore_id();
     qconf = &lcore_queue_conf[lcore_id];
 
-    // TODO check if the socket is active before doing things on it
     while (poller_alive) {
-        struct rte_mbuf *buf[PKT_READ_SIZE];
-        uint16_t rx_count;
+        struct rte_mbuf *rxbuf[PKT_READ_SIZE];
+        struct rte_mbuf *txbuf[PKT_WRITE_SIZE];
+        uint16_t rx_count, tx_sendable, tx_count;
         int i, j;
 
         // Get current timestamp (needed for reassembly)
         cur_tsc = rte_rdtsc();
 
-        // Receive packets from DPDK port 0 (queue 0)   # TODO use more queues
-        rx_count = rte_eth_rx_burst(PORT_RX, QUEUE_RX, buf, PKT_READ_SIZE);
+        // Transmit packets to DPDK port 0 (queue 0)
+        for (i = 0; i < NUM_SOCKETS_MAX; i++) {
+            if (exch_zone_desc->slots[i].used) {
+                tx_sendable = rte_ring_dequeue_burst(exch_slots[i].tx_q, (void **)txbuf, PKT_READ_SIZE, NULL);
+                if (likely(tx_sendable > 0)) {
+                    tx_count = rte_eth_tx_burst(PORT_TX, QUEUE_TX, txbuf, tx_sendable);  // TODO should call a send function that accoubts for fragmentation
+                    if (unlikely(tx_count < tx_sendable)) {
+                        do {
+                            rte_pktmbuf_free(txbuf[tx_count]);
+                        } while (++tx_count < tx_sendable);
+                    }
+                }
+            }
+        }
+
+        // Receive packets from DPDK port 0 (queue 0)   TODO use more queues
+        rx_count = rte_eth_rx_burst(PORT_RX, QUEUE_RX, rxbuf, PKT_READ_SIZE);
 
         if (likely(rx_count > 0)) {
+            printf("poller rxcount: %d\n", rx_count);  // TODO debug
             // Prefetch some packets (to reduce cache misses later)
             for (j = 0; j < PREFETCH_OFFSET && j < rx_count; j++) {
-                rte_prefetch0(rte_pktmbuf_mtod(buf[j], void *));
+                rte_prefetch0(rte_pktmbuf_mtod(rxbuf[j], void *));
             }
 
             // Prefetch the remaining packets, and reassemble the first ones
             for (j = 0; j < (rx_count - PREFETCH_OFFSET); j++) {
-                rte_prefetch0(rte_pktmbuf_mtod(buf[j + PREFETCH_OFFSET], void *));
-                reassemble(buf[j], PORT_RX, QUEUE_RX, qconf, cur_tsc);
+                rte_prefetch0(rte_pktmbuf_mtod(rxbuf[j + PREFETCH_OFFSET], void *));
+                reassemble(rxbuf[j], PORT_RX, QUEUE_RX, qconf, cur_tsc);
             }
 
             // Reassemble the second batch of fragments
             for (; j < rx_count; j++) {
-                reassemble(buf[j], PORT_RX, QUEUE_RX, qconf, cur_tsc);
+                reassemble(rxbuf[j], PORT_RX, QUEUE_RX, qconf, cur_tsc);
             }
 
             // Effectively flush the packets to exchange buffers

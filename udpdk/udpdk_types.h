@@ -40,6 +40,6 @@ struct exch_slot {
     struct rte_ring *tx_q;                      // TX queue
     struct rte_mbuf *rx_buffer[EXCH_BUF_SIZE];  // buffers storing rx packets before flushing to rt_ring
     uint16_t rx_count;                          // current number of packets in the rx buffer
-};
+} __rte_cache_aligned;
 
 #endif //UDPDK_TYPES_H

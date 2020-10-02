@@ -1,4 +1,5 @@
 udpdk_init
+udpdk_interrupt
 udpdk_cleanup
 udpdk_socket
 udpdk_bind

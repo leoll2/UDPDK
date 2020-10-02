@@ -12,6 +12,7 @@
 #define PORT_RX     0
 #define PORT_TX     0
 #define QUEUE_RX    0
+#define QUEUE_TX    0
 #define NUM_RX_DESC_DEFAULT 1024
 #define NUM_TX_DESC_DEFAULT 1024
 #define PKTMBUF_POOL_NAME   "UDPDK_mbuf_pool"
@@ -19,6 +20,7 @@
 
 /* Packet poller */
 #define PKT_READ_SIZE       32
+#define PKT_WRITE_SIZE      32
 #define PREFETCH_OFFSET     4
 #define NUM_FLOWS_DEF       0x1000
 #define NUM_FLOWS_MIN       1
