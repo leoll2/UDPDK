@@ -126,6 +126,7 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
     // Insert in the hashtable (port, sock_id)
     htable_insert(udp_port_table, (int)port, sockfd);
+    RTE_LOG(INFO, SYSCALL, "Binding port %d to sock_id %d\n", port, sockfd);
     return 0;
 }
 
@@ -217,7 +218,6 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     struct rte_udp_hdr *udp_hdr;
     void *udp_data;
 
-    printf("Inside recvfrom\n");
     // Validate the arguments
     if (recvfrom_validate_args(sockfd, buf, len, flags, src_addr, addrlen) < 0) {
         return -1;

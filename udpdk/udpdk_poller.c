@@ -28,7 +28,9 @@
 #include "udpdk_lookup_table.h"
 #include "udpdk_types.h"
 
+#define RTE_LOGTYPE_POLLBODY RTE_LOGTYPE_USER1
 #define RTE_LOGTYPE_POLLINIT RTE_LOGTYPE_USER1
+#define RTE_LOGTYPE_POLLINTR RTE_LOGTYPE_USER1
 
 static volatile int poller_alive = 1;
 
@@ -55,7 +57,7 @@ static struct lcore_queue_conf lcore_queue_conf[RTE_MAX_LCORE];
 /* Poller signal handler */
 static void poller_sighandler(int sig)
 {
-    printf("Poller: received request to stop\n");
+    RTE_LOG(INFO, POLLINTR, "Received request to stop\n");
     poller_alive = 0;
 }
 
@@ -154,6 +156,7 @@ static int setup_udp_table(void)
         return -1;
     }
     udp_port_table = udp_port_table_mz->addr;
+
     return 0;
 }
 
@@ -258,7 +261,7 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     struct rx_queue *rxq;
     uint16_t udp_dst_port;
     uint32_t ip_dst;
-    static int foo = 0; // TODO dummy
+    int sock_id;
 
     rxq = &qconf->rx_queue;
 
@@ -292,12 +295,12 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
             }
         }
     } else {
-        printf("[WARN] Received non-IPv4 packet.\n");
+        RTE_LOG(WARNING, POLLBODY, "Received non-IPv4 packet.\n");
         return;
     }
 
     if (!is_udp_pkt(ip_hdr)) {
-        printf("[WARN] Received non-UDP packet.\n");
+        RTE_LOG(WARNING, POLLBODY, "Received non-UDP packet.\n");
         return;
     }
     udp_dst_port = get_udp_dst_port(
@@ -309,13 +312,14 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     printf("[DBG] UDP dest port: %d\n", udp_dst_port);  // TODO DEBUG
     printf("[DBG] IP dest addr: %s\n", ip_str); // TODO DEBUG
 
-    // TODO based on UDP, find the appropriate exchange buffer
-    // TODO here enqueuing is a dummy round-robin, not based on actual port!
-    if (foo & 1) {
-        enqueue_rx_packet(1, m);
-    } else {
-        enqueue_rx_packet(0, m);
+    // Find the sock_id corresponding to the UDP dst port (L4 switching) and enqueue the packet to its queue
+    sock_id = htable_lookup(udp_port_table, udp_dst_port);
+    if (sock_id < 0 || sock_id >= NUM_SOCKETS_MAX) {
+        errno = EINVAL;
+        RTE_LOG(ERR, POLLBODY, "Invalid L4 port mapping: port %d maps to sock_id %d\n", udp_dst_port, sock_id);
+        return;
     }
+    enqueue_rx_packet(sock_id, m);
 }
 
 /* Packet polling routine */
