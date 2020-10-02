@@ -190,7 +190,6 @@ static int init_shared_memzone(void)
     memset(mz->addr, 0, sizeof(*exch_zone_desc));
     exch_zone_desc = mz->addr;
 
-    // TODO any field to set to a specific value?
     return 0;
 }
 
@@ -247,9 +246,7 @@ int udpdk_init(int argc, char *argv[])
 
     // Start the secondary process
     poller_pid = fork();
-    if (poller_pid != 0) {
-        // application
-
+    if (poller_pid != 0) {  // parent -> application
         // Initialize EAL (returns how many arguments it consumed)
         retval = rte_eal_init(argc, argv);
         if (retval < 0) {
@@ -303,9 +300,7 @@ int udpdk_init(int argc, char *argv[])
             RTE_LOG(ERR, INIT, "Cannot initialize exchange slots\n");
             return -1;
         }
-        // TODO initialize shared structures
-    } else {
-        // child -> packet poller
+    } else {  // child -> packet poller
         // TODO the arguments should come from a config rather than being hardcoded
         int poller_argc = 6;
         char *poller_argv[6] = {

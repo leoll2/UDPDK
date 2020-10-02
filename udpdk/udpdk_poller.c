@@ -344,7 +344,7 @@ void poller_body(void)
         // Transmit packets to DPDK port 0 (queue 0)
         for (i = 0; i < NUM_SOCKETS_MAX; i++) {
             if (exch_zone_desc->slots[i].used) {
-                tx_sendable = rte_ring_dequeue_burst(exch_slots[i].tx_q, (void **)txbuf, PKT_READ_SIZE, NULL);
+                tx_sendable = rte_ring_dequeue_burst(exch_slots[i].tx_q, (void **)txbuf, PKT_WRITE_SIZE, NULL);
                 if (likely(tx_sendable > 0)) {
                     tx_count = rte_eth_tx_burst(PORT_TX, QUEUE_TX, txbuf, tx_sendable);  // TODO should call a send function that accoubts for fragmentation
                     if (unlikely(tx_count < tx_sendable)) {
@@ -360,7 +360,6 @@ void poller_body(void)
         rx_count = rte_eth_rx_burst(PORT_RX, QUEUE_RX, rxbuf, PKT_READ_SIZE);
 
         if (likely(rx_count > 0)) {
-            printf("poller rxcount: %d\n", rx_count);  // TODO debug
             // Prefetch some packets (to reduce cache misses later)
             for (j = 0; j < PREFETCH_OFFSET && j < rx_count; j++) {
                 rte_prefetch0(rte_pktmbuf_mtod(rxbuf[j], void *));
