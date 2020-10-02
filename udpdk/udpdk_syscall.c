@@ -268,6 +268,9 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
         *addrlen = eff_addrlen;
     }
 
+    // Free the mbuf
+    rte_pktmbuf_free(pkt);
+
     // Return how many bytes read
     return eff_len;
 }
