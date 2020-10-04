@@ -37,6 +37,7 @@ static volatile int poller_alive = 1;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern htable_item *udp_port_table;
+static struct rte_mempool *dummy_pool = NULL;  // TODO dummy
 
 /* Descriptor of a RX queue */
 struct rx_queue {
@@ -89,7 +90,7 @@ static int setup_queues(void)
 
     // Memory pool for mbufs
     // TODO actually unused because pool is needed only to initialize a queue, which is done in 'application' anyway
-    qconf->rx_queue.pool = rte_mempool_lookup(PKTMBUF_POOL_NAME);
+    qconf->rx_queue.pool = rte_mempool_lookup(PKTMBUF_POOL_RX_NAME);
     if (qconf->rx_queue.pool == NULL) {
         RTE_LOG(ERR, POLLINIT, "Cannot retrieve mempool for mbufs\n");
         return -1;
@@ -197,17 +198,9 @@ int poller_init(int argc, char *argv[])
     signal(SIGINT, poller_sighandler);
     signal(SIGTERM, poller_sighandler);
 
-    return 0;
-}
+    dummy_pool = rte_pktmbuf_pool_create("DUMMYPOOL", 1024, 32, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id()); // TODO dummy
 
-static void ipv4_int_to_str(unsigned int ip, char *buf)
-{
-    unsigned char bytes[4];
-    bytes[0] = ip & 0xFF;
-    bytes[1] = (ip >> 8) & 0xFF;
-    bytes[2] = (ip >> 16) & 0xFF;
-    bytes[3] = (ip >> 24) & 0xFF;
-    snprintf(buf, 16, "%d.%d.%d.%d", bytes[3], bytes[2], bytes[1], bytes[0]);
+    return 0;
 }
 
 static void flush_rx_queue(uint16_t idx)
@@ -243,12 +236,7 @@ static inline uint16_t is_udp_pkt(struct rte_ipv4_hdr *ip_hdr)
 
 static inline uint16_t get_udp_dst_port(struct rte_udp_hdr *udp_hdr)
 {
-    return rte_be_to_cpu_16(udp_hdr->dst_port);
-}
-
-static inline uint32_t get_ip_dst(struct rte_ipv4_hdr *ip_hdr)
-{
-    return rte_be_to_cpu_32(ip_hdr->dst_addr);
+    return udp_hdr->dst_port;
 }
 
 static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queue,
@@ -260,7 +248,6 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     struct rte_ip_frag_death_row *dr;
     struct rx_queue *rxq;
     uint16_t udp_dst_port;
-    uint32_t ip_dst;
     int sock_id;
 
     rxq = &qconf->rx_queue;
@@ -292,6 +279,7 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
                 m = mo;
                 eth_hdr = rte_pktmbuf_mtod(m, struct rte_ether_hdr *);
                 ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+                // TODO must fix the IP header checksum as done in ip-sec example
             }
         }
     } else {
@@ -305,12 +293,6 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     }
     udp_dst_port = get_udp_dst_port(
             (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr)));
-    ip_dst = get_ip_dst(ip_hdr);
-
-    char ip_str[16];                                    // TODO DEBUG
-    ipv4_int_to_str(ip_dst, ip_str);                    // TODO DEBUG
-    printf("[DBG] UDP dest port: %d\n", udp_dst_port);  // TODO DEBUG
-    printf("[DBG] IP dest addr: %s\n", ip_str); // TODO DEBUG
 
     // Find the sock_id corresponding to the UDP dst port (L4 switching) and enqueue the packet to its queue
     sock_id = htable_lookup(udp_port_table, udp_dst_port);
@@ -345,7 +327,7 @@ void poller_body(void)
         for (i = 0; i < NUM_SOCKETS_MAX; i++) {
             if (exch_zone_desc->slots[i].used) {
                 tx_sendable = rte_ring_dequeue_burst(exch_slots[i].tx_q, (void **)txbuf, PKT_WRITE_SIZE, NULL);
-                if (likely(tx_sendable > 0)) {
+                if (tx_sendable > 0) {
                     tx_count = rte_eth_tx_burst(PORT_TX, QUEUE_TX, txbuf, tx_sendable);  // TODO should call a send function that accoubts for fragmentation
                     if (unlikely(tx_count < tx_sendable)) {
                         do {

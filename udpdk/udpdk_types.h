@@ -28,6 +28,7 @@ struct exch_slot_info {
     int used;       // used by an open socket
     int bound;      // used by a socket that did 'bind'
     int sockfd;     // TODO redundant because it matches the slot index in this implementation
+    int udp_port;   // UDP port associated to the socket (only if bound)
 } __rte_cache_aligned;
 
 struct exch_zone_info {

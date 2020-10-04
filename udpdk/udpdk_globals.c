@@ -8,6 +8,10 @@
 
 volatile int interrupted = 0;
 
+struct rte_mempool *rx_pktmbuf_pool = NULL;
+
+struct rte_mempool *tx_pktmbuf_pool = NULL;
+
 htable_item *udp_port_table = NULL;
 
 struct exch_zone_info *exch_zone_desc = NULL;

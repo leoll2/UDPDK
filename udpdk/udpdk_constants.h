@@ -15,8 +15,9 @@
 #define QUEUE_TX    0
 #define NUM_RX_DESC_DEFAULT 1024
 #define NUM_TX_DESC_DEFAULT 1024
-#define PKTMBUF_POOL_NAME   "UDPDK_mbuf_pool"
 #define MBUF_CACHE_SIZE     512
+#define PKTMBUF_POOL_RX_NAME    "UDPDK_mbuf_pool_RX"
+#define PKTMBUF_POOL_TX_NAME    "UDPDK_mbuf_pool_TX"
 
 /* Packet poller */
 #define PKT_READ_SIZE       32
@@ -38,5 +39,11 @@
 
 /* L4 port switching */
 #define UDP_PORT_TABLE_NAME     "UDPDK_UDP_port_table"
+
+/* IPv4 header */
+#define IP_DEFTTL       64
+#define IP_VERSION      0x40
+#define IP_HDRLEN       0x05
+#define IP_VHL_DEF      (IP_VERSION | IP_HDRLEN)
 
 #endif //UDPDK_CONSTANTS_H

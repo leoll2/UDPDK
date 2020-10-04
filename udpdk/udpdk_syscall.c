@@ -7,6 +7,7 @@
 #include <netinet/in.h>
 
 #include <rte_log.h>
+#include <rte_random.h>
 
 #include "udpdk_api.h"
 #include "udpdk_lookup_table.h"
@@ -17,6 +18,7 @@ extern int interrupted;
 extern htable_item *udp_port_table;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
+extern struct rte_mempool *tx_pktmbuf_pool;
 
 static int socket_validate_args(int domain, int type, int protocol)
 {
@@ -113,6 +115,7 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         return -1;
     }
 
+    // Check if the port is already being used
     port = addr_in->sin_port;
     ret = htable_lookup(udp_port_table, port);
     if (ret != -1) {
@@ -123,10 +126,13 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
     // Mark the slot as bound
     exch_zone_desc->slots[sockfd].bound = 1;
+    exch_zone_desc->slots[sockfd].udp_port = (int)port;
 
     // Insert in the hashtable (port, sock_id)
     htable_insert(udp_port_table, (int)port, sockfd);
     RTE_LOG(INFO, SYSCALL, "Binding port %d to sock_id %d\n", port, sockfd);
+
+    // TODO must bind the IP address too (if INADDR_ANY, pick one)
     return 0;
 }
 
@@ -161,16 +167,111 @@ static int sendto_validate_args(int sockfd, const void *buf, size_t len, int fla
     return 0;
 }
 
+// TODO move this elsewhere
+static int get_free_udp_port(void)
+{
+    int port;
+    if (exch_zone_desc->n_zones_active == NUM_SOCKETS_MAX) {
+        // No port available
+        return -1;
+    }
+
+    // Generate a random unused port
+    do {
+        port = (uint16_t)rte_rand();
+    } while (htable_lookup(udp_port_table, port) != -1);
+
+    return port;
+}
+
 ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
                      const struct sockaddr *dest_addr, socklen_t addrlen)
 {
+    struct rte_mbuf *pkt;
+    struct rte_ether_hdr *eth_hdr;
+    struct rte_ipv4_hdr *ip_hdr;
+    struct rte_udp_hdr *udp_hdr;
+    void *udp_data;
+    const struct sockaddr_in *dest_addr_in = (struct sockaddr_in *)dest_addr;
+
+    static struct rte_ether_addr src_eth_addr = { {0x68, 0x05, 0xca, 0x95, 0xf8, 0xec} };   // TODO from configuration
+    static uint32_t src_ip_addr = RTE_IPV4(2, 100, 31, 172);                                // TODO from bind (reversed for endianness=
+    static struct rte_ether_addr dst_eth_addr = { {0x68, 0x05, 0xca, 0x95, 0xfa, 0x64} };   // TODO from configuration
+
     // Validate the arguments
     if (sendto_validate_args(sockfd, buf, len, flags, dest_addr, addrlen) < 0) {
         return -1;
     }
 
-    // TODO implement core
-    return 0;
+    // If the socket was not explicitly bound, bind it when the first packet is sent
+    if (unlikely(!exch_zone_desc->slots[sockfd].bound)) {
+        struct sockaddr_in saddr_in;
+        memset(&saddr_in, 0, sizeof(saddr_in));
+        saddr_in.sin_family = AF_INET;
+        saddr_in.sin_addr.s_addr = INADDR_ANY;
+        saddr_in.sin_port = get_free_udp_port();
+        if (udpdk_bind(sockfd, (const struct sockaddr *)&saddr_in, sizeof(saddr_in)) < 0) {
+            RTE_LOG(ERR, SYSCALL, "Send failed to bind\n");
+            return -1;
+        }
+    }
+
+    // Allocate one mbuf for the packet (will be freed when effectively sent)
+    pkt = rte_pktmbuf_alloc(tx_pktmbuf_pool);
+    if (!pkt) {
+        RTE_LOG(ERR, SYSCALL, "Sendto failed to allocate mbuf\n");
+        errno = ENOMEM;
+        return -1;
+    }
+
+    // Initialize the Ethernet header
+    eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
+    rte_ether_addr_copy(&src_eth_addr, &eth_hdr->s_addr);
+    rte_ether_addr_copy(&dst_eth_addr, &eth_hdr->d_addr);
+    eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+
+    // Initialize the IP header
+    ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
+    memset(ip_hdr, 0, sizeof(*ip_hdr));
+    ip_hdr->version_ihl = IP_VHL_DEF;
+    ip_hdr->type_of_service = 0;
+    ip_hdr->fragment_offset = 0;
+    ip_hdr->time_to_live = IP_DEFTTL;
+    ip_hdr->next_proto_id = IPPROTO_UDP;
+    ip_hdr->packet_id = 0;
+    ip_hdr->src_addr = src_ip_addr;   // TODO this should be determined by bind()
+    ip_hdr->dst_addr = dest_addr_in->sin_addr.s_addr;
+    ip_hdr->total_length = rte_cpu_to_be_16(len + sizeof(*ip_hdr) + sizeof(*udp_hdr));
+    ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
+
+    // Initialize the UDP header
+    udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
+    udp_hdr->src_port = exch_zone_desc->slots[sockfd].udp_port;
+    udp_hdr->dst_port = dest_addr_in->sin_port;
+    udp_hdr->dgram_cksum = 0;   // UDP checksum is optional
+    udp_hdr->dgram_len = rte_cpu_to_be_16(len + sizeof(*udp_hdr));
+
+    // Fill other DPDK metadata
+    pkt->nb_segs = 1;
+    pkt->pkt_len = len + sizeof(*eth_hdr) + sizeof(*ip_hdr) + sizeof(*udp_hdr);
+    pkt->data_len = pkt->pkt_len;
+    pkt->l2_len = sizeof(struct rte_ether_hdr);
+    pkt->l3_len = sizeof(struct rte_ipv4_hdr);
+    pkt->l4_len = sizeof(struct rte_udp_hdr);
+
+    // Write payload
+    udp_data = (void *)(udp_hdr + 1);
+    strncpy(udp_data, buf, len);
+
+    // Put the packet in the tx_ring
+    if (rte_ring_enqueue(exch_slots[sockfd].tx_q, (void *)pkt) < 0) {
+        RTE_LOG(ERR, SYSCALL, "Sendto failed to put packet in the TX ring\n");
+        errno = ENOBUFS;
+        rte_pktmbuf_free(pkt);
+        return -1;
+    }
+
+    return len;
 }
 
 static int recvfrom_validate_args(int sockfd, void *buf, size_t len, int flags,
@@ -239,6 +340,7 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
     udp_data = (void *)(udp_hdr + 1);
     udp_data_len = pkt_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
+
     printf("recfrom pktlen: %d\n", pkt_len);
     printf("recfrom udp_data_len: %d\n", udp_data_len);
 
@@ -257,8 +359,8 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
         struct sockaddr_in addr_in;
         memset(&addr_in, 0, sizeof(addr_in));
         addr_in.sin_family = AF_INET;
-        addr_in.sin_port = rte_be_to_cpu_16(udp_hdr->src_port);
-        addr_in.sin_addr.s_addr = rte_be_to_cpu_32(ip_hdr->src_addr);
+        addr_in.sin_port = udp_hdr->src_port;
+        addr_in.sin_addr.s_addr = ip_hdr->src_addr;
         if (sizeof(addr_in) <= *addrlen) {
             eff_addrlen = sizeof(addr_in);
         } else {

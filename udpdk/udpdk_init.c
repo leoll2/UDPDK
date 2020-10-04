@@ -33,7 +33,8 @@ extern int interrupted;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern htable_item *udp_port_table;
-static struct rte_mempool *pktmbuf_pool;
+extern struct rte_mempool *rx_pktmbuf_pool;
+extern struct rte_mempool *tx_pktmbuf_pool;
 static pid_t poller_pid;
 
 /* Get the name of the rings of exchange slots */
@@ -50,16 +51,20 @@ static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func f
 }
 
 /* Initialize a pool of mbuf for reception and transmission */
-static int init_mbuf_pool(void)
+static int init_mbuf_pools(void)
 {
     const unsigned int num_mbufs_rx = NUM_RX_DESC_DEFAULT;
-    const unsigned int num_mbufs_tx = NUM_TX_DESC_DEFAULT;
+    const unsigned int num_mbufs_tx = NUM_TX_DESC_DEFAULT;  // TODO why sized like this?
     const unsigned int num_mbufs_cache = 2 * MBUF_CACHE_SIZE;
     const unsigned int num_mbufs = num_mbufs_rx + num_mbufs_tx + num_mbufs_cache;
 
-    pktmbuf_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
+    rx_pktmbuf_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_RX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
             RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
-    return pktmbuf_pool == NULL;   // 0  on success
+
+    tx_pktmbuf_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
+            RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());  // TODO size properly
+
+    return (rx_pktmbuf_pool == NULL || tx_pktmbuf_pool == NULL);   // 0  on success
 }
 
 /* Initialize a DPDK port */
@@ -95,7 +100,7 @@ static int init_port(uint16_t port_num)
     // Setup the RX queues
     for (q = 0; q < rx_rings; q++) {
         retval = rte_eth_rx_queue_setup(port_num, q, rx_ring_size,
-                rte_eth_dev_socket_id(port_num), NULL, pktmbuf_pool);
+                rte_eth_dev_socket_id(port_num), NULL, rx_pktmbuf_pool);
         if (retval < 0) {
             RTE_LOG(ERR, INIT, "Could not setup RX queue %d on port %d\n", q, port_num);
             return retval;
@@ -256,10 +261,10 @@ int udpdk_init(int argc, char *argv[])
         argc -= retval;
         argv += retval;
 
-        // Initialize pool of mbuf
-        retval = init_mbuf_pool();
+        // Initialize pools of mbuf
+        retval = init_mbuf_pools();
         if (retval < 0) {
-            RTE_LOG(ERR, INIT, "Cannot initialize pool of mbufs\n");
+            RTE_LOG(ERR, INIT, "Cannot initialize pools of mbufs\n");
             return -1;
         }
 
