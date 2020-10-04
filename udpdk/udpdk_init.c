@@ -11,6 +11,7 @@
 
 #include <rte_common.h>
 #include <rte_eal.h>
+#include <rte_errno.h>
 #include <rte_ethdev.h>
 #include <rte_launch.h>
 #include <rte_lcore.h>
@@ -35,6 +36,8 @@ extern struct exch_slot *exch_slots;
 extern htable_item *udp_port_table;
 extern struct rte_mempool *rx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_pool;
+extern struct rte_mempool *tx_pktmbuf_direct_pool;
+extern struct rte_mempool *tx_pktmbuf_indirect_pool;
 static pid_t poller_pid;
 
 /* Get the name of the rings of exchange slots */
@@ -57,14 +60,37 @@ static int init_mbuf_pools(void)
     const unsigned int num_mbufs_tx = NUM_TX_DESC_DEFAULT;  // TODO why sized like this?
     const unsigned int num_mbufs_cache = 2 * MBUF_CACHE_SIZE;
     const unsigned int num_mbufs = num_mbufs_rx + num_mbufs_tx + num_mbufs_cache;
+    const int socket = rte_socket_id();
 
     rx_pktmbuf_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_RX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
-            RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);
+    if (rx_pktmbuf_pool == NULL) {
+        RTE_LOG(ERR, INIT, "Failed to allocate RX pool: %s\n", rte_strerror(rte_errno));
+        return -1;
+    }
 
     tx_pktmbuf_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
-            RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());  // TODO size properly
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the app (sendto) TODO size properly
+    if (tx_pktmbuf_pool == NULL) {
+        RTE_LOG(ERR, INIT, "Failed to allocate TX pool: %s\n", rte_strerror(rte_errno));
+        return -1;
+    }
 
-    return (rx_pktmbuf_pool == NULL || tx_pktmbuf_pool == NULL);   // 0  on success
+    tx_pktmbuf_direct_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_DIRECT_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the poller       TODO size properly
+    if (tx_pktmbuf_direct_pool == NULL) {
+        RTE_LOG(ERR, INIT, "Failed to allocate TX direct pool: %s\n", rte_strerror(rte_errno));
+        return -1;
+    }
+
+    tx_pktmbuf_indirect_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_INDIRECT_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the poller TODO size properly
+    if (tx_pktmbuf_indirect_pool == NULL) {
+        RTE_LOG(ERR, INIT, "Failed to allocate TX indirect pool: %s\n", rte_strerror(rte_errno));
+        return -1;
+    }
+
+    return 0;
 }
 
 /* Initialize a DPDK port */

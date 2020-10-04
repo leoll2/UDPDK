@@ -6,6 +6,9 @@
 #ifndef UDPDK_CONSTANTS_H
 #define UDPDK_CONSTANTS_H
 
+#define MAX(a,b) ((a) > (b) ? a : b)
+#define MIN(a,b) ((a) < (b) ? a : b)
+
 #define NUM_SOCKETS_MAX     1024
 
 /* DPDK ports */
@@ -16,18 +19,25 @@
 #define NUM_RX_DESC_DEFAULT 1024
 #define NUM_TX_DESC_DEFAULT 1024
 #define MBUF_CACHE_SIZE     512
-#define PKTMBUF_POOL_RX_NAME    "UDPDK_mbuf_pool_RX"
-#define PKTMBUF_POOL_TX_NAME    "UDPDK_mbuf_pool_TX"
+#define PKTMBUF_POOL_RX_NAME            "UDPDK_mbuf_pool_RX"
+#define PKTMBUF_POOL_TX_NAME            "UDPDK_mbuf_pool_TX"
+#define PKTMBUF_POOL_DIRECT_TX_NAME     "UDPDK_mbuf_pool_direct_TX"
+#define PKTMBUF_POOL_INDIRECT_TX_NAME   "UDPDK_mbuf_pool_indir_TX"
 
-/* Packet poller */
-#define PKT_READ_SIZE       32
-#define PKT_WRITE_SIZE      32
-#define PREFETCH_OFFSET     4
+/* IPv4 Fragmentation */
 #define NUM_FLOWS_DEF       0x1000
 #define NUM_FLOWS_MIN       1
 #define NUM_FLOWS_MAX       UINT16_MAX
 #define MAX_FLOW_TTL        MS_PER_S
 #define IP_FRAG_TBL_BUCKET_ENTRIES  16
+#define IPV4_MTU_DEFAULT    RTE_ETHER_MTU
+#define MAX_PACKET_FRAG     RTE_LIBRTE_IP_FRAG_MAX_FRAG
+
+/* Packet poller */
+#define BURST_SIZE          32
+#define RX_MBUF_TABLE_SIZE  BURST_SIZE
+#define TX_MBUF_TABLE_SIZE  (2 * MAX(BURST_SIZE, MAX_PACKET_FRAG))
+#define PREFETCH_OFFSET     4
 
 /* Exchange memzone */
 #define EXCH_MEMZONE_NAME   "UDPDK_exchange_desc"
