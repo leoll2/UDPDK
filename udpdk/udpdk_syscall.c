@@ -261,7 +261,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
 
     // Write payload
     udp_data = (void *)(udp_hdr + 1);
-    strncpy(udp_data, buf, len);
+    memcpy(udp_data, buf, len);
 
     // Put the packet in the tx_ring
     if (rte_ring_enqueue(exch_slots[sockfd].tx_q, (void *)pkt) < 0) {
@@ -340,9 +340,6 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
     udp_data = (void *)(udp_hdr + 1);
     udp_data_len = pkt_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
-
-    printf("recfrom pktlen: %d\n", pkt_len);
-    printf("recfrom udp_data_len: %d\n", udp_data_len);
 
     // If the provided buffer is large enough to store it, then copy the whole packet, else only part of it
     if (udp_data_len >= len) {
