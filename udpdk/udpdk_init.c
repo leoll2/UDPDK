@@ -99,8 +99,13 @@ static int init_port(uint16_t port_num)
     // TODO add support for multiple rings
     const struct rte_eth_conf port_conf = {
         .rxmode = {
-            .mq_mode = ETH_MQ_RX_RSS
+            .mq_mode = ETH_MQ_RX_RSS,
         }
+        /* TODO
+        .txmode = {
+            .offloads = DEV_TX_OFFLOAD_MULTI_SEGS,
+        }
+        */
     };
     const uint16_t rx_rings = 1;
     const uint16_t tx_rings = 1;
@@ -273,19 +278,17 @@ static int init_exchange_slots(void)
 /* Initialize UDPDK */
 int udpdk_init(int argc, char *argv[])
 {
-    int retval;
+    int retval, args_consumed;
 
     // Start the secondary process
     poller_pid = fork();
     if (poller_pid != 0) {  // parent -> application
         // Initialize EAL (returns how many arguments it consumed)
-        retval = rte_eal_init(argc, argv);
-        if (retval < 0) {
+        args_consumed = rte_eal_init(argc, argv);
+        if (args_consumed < 0) {
             RTE_LOG(ERR, INIT, "Cannot initialize EAL\n");
             return -1;
         }
-        argc -= retval;
-        argv += retval;
 
         // Initialize pools of mbuf
         retval = init_mbuf_pools();
@@ -350,7 +353,7 @@ int udpdk_init(int argc, char *argv[])
         poller_body();
     }
     // The parent process (application) returns immediately from init; instead, poller doesn't till it dies (or error)
-    return 0;
+    return args_consumed;
 }
 
 void udpdk_interrupt(int signum)
