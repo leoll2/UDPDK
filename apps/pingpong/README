@@ -1,0 +1,5 @@
+Ping host:
+    sudo ./pingpong -- -f ping
+
+Pong host:
+    sudo ./pingpong -- -f pong
