@@ -125,7 +125,8 @@ static void pong_body(void)
 
 static void usage(void)
 {
-    printf("%s [EAL options] -- -f FUNCTION \n"
+    printf("%s -c CONFIG -f FUNCTION \n"
+            " -c CONFIG: .ini configuration file"
             " -f FUNCTION: 'ping' or 'pong'\n"
             , progname);
 }
@@ -137,8 +138,11 @@ static int parse_app_args(int argc, char *argv[])
 
     progname = argv[0];
 
-    while ((c = getopt (argc, argv, "f:")) != -1) {
+    while ((c = getopt(argc, argv, "c:f:")) != -1) {
         switch (c) {
+            case 'c':
+                // this is for the .ini cfg file needed by DPDK, not by the app
+                break;
             case 'f':
                 if (strcmp(optarg, "ping") == 0) {
                     mode = PING;
@@ -168,18 +172,18 @@ int main(int argc, char *argv[])
 
     // Initialize UDPDK
     retval = udpdk_init(argc, argv);
-    if (retval != 0) {
+    if (retval < 0) {
+        goto pingpong_end;
         return -1;
     }
-    argc -= retval;
-    argv += retval;
     sleep(2);
-    printf("UDPDK Intialized\n");
+    printf("App: UDPDK Intialized\n");
 
     // Parse app-specific arguments
     printf("Parsing app arguments...\n");
     retval = parse_app_args(argc, argv);
     if (retval != 0) {
+        goto pingpong_end;
         return -1;
     }
 
@@ -190,6 +194,8 @@ int main(int argc, char *argv[])
         pong_body();
     }
 
+pingpong_end:
+    udpdk_interrupt(0);
     udpdk_cleanup();
     return 0;
 }
