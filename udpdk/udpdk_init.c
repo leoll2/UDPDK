@@ -21,6 +21,7 @@
 #include <rte_memzone.h>
 
 #include "udpdk_api.h"
+#include "udpdk_args.h"
 #include "udpdk_constants.h"
 #include "udpdk_lookup_table.h"
 #include "udpdk_poller.h"
@@ -38,6 +39,10 @@ extern struct rte_mempool *rx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_direct_pool;
 extern struct rte_mempool *tx_pktmbuf_indirect_pool;
+extern int primary_argc;
+extern int secondary_argc;
+extern char *primary_argv[MAX_ARGC];
+extern char *secondary_argv[MAX_ARGC];
 static pid_t poller_pid;
 
 /* Get the name of the rings of exchange slots */
@@ -278,14 +283,19 @@ static int init_exchange_slots(void)
 /* Initialize UDPDK */
 int udpdk_init(int argc, char *argv[])
 {
-    int retval, args_consumed;
+    int retval;
+
+    // Initialize UDPDK
+    if (udpdk_parse_args(argc, argv) < 0) {  // initializes primary and secondary argc argv
+        RTE_LOG(ERR, INIT, "Invalid arguments for UDPDK\n");
+        return -1;
+    }
 
     // Start the secondary process
     poller_pid = fork();
     if (poller_pid != 0) {  // parent -> application
         // Initialize EAL (returns how many arguments it consumed)
-        args_consumed = rte_eal_init(argc, argv);
-        if (args_consumed < 0) {
+        if (rte_eal_init(primary_argc, (char **)primary_argv) < 0) {
             RTE_LOG(ERR, INIT, "Cannot initialize EAL\n");
             return -1;
         }
@@ -335,25 +345,15 @@ int udpdk_init(int argc, char *argv[])
             return -1;
         }
     } else {  // child -> packet poller
-        // TODO the arguments should come from a config rather than being hardcoded
-        int poller_argc = 6;
-        char *poller_argv[6] = {
-                "./testapp",
-                "-l",
-                "3-4",
-                "-n",
-                "2",
-                "--proc-type=secondary"
-        };
         sleep(1);   // TODO use some synchronization mechanism between primary and secondary
-        if (poller_init(poller_argc, poller_argv) < 0) {
+        if (poller_init(secondary_argc, (char **)secondary_argv) < 0) {
             RTE_LOG(INFO, INIT, "Poller initialization failed\n");
             return -1;
         }
         poller_body();
     }
     // The parent process (application) returns immediately from init; instead, poller doesn't till it dies (or error)
-    return args_consumed;
+    return 0;
 }
 
 void udpdk_interrupt(int signum)

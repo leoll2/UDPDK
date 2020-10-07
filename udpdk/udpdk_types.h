@@ -43,4 +43,12 @@ struct exch_slot {
     uint16_t rx_count;                          // current number of packets in the rx buffer
 } __rte_cache_aligned;
 
+typedef struct {
+    struct rte_ether_addr src_mac_addr;
+    struct rte_ether_addr dst_mac_addr;
+    char lcores_primary[MAX_ARG_LEN];
+    char lcores_secondary[MAX_ARG_LEN];
+    int n_mem_channels;
+} configuration;
+
 #endif //UDPDK_TYPES_H

@@ -56,4 +56,8 @@
 #define IP_HDRLEN       0x05
 #define IP_VHL_DEF      (IP_VERSION | IP_HDRLEN)
 
+/* Parser */
+#define MAX_ARGC        64
+#define MAX_ARG_LEN     256
+
 #endif //UDPDK_CONSTANTS_H

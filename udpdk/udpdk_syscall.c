@@ -195,7 +195,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     const struct sockaddr_in *dest_addr_in = (struct sockaddr_in *)dest_addr;
 
     static struct rte_ether_addr src_eth_addr = { {0x68, 0x05, 0xca, 0x95, 0xf8, 0xec} };   // TODO from configuration
-    static uint32_t src_ip_addr = RTE_IPV4(2, 100, 31, 172);                                // TODO from bind (reversed for endianness=
+    static uint32_t src_ip_addr = RTE_IPV4(2, 100, 31, 172);                                // TODO from bind (reversed for endianness)
     static struct rte_ether_addr dst_eth_addr = { {0x68, 0x05, 0xca, 0x95, 0xfa, 0x64} };   // TODO from configuration
 
     // Validate the arguments

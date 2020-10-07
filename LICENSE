@@ -33,3 +33,5 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 This software uses code from:
 - DPDK: https://www.dpdk.org/
     License: BSD 3-Clause
+- inih: https://github.com/benhoyt/inih
+    License: BSD 3-Clause
