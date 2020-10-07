@@ -344,11 +344,11 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     udp_data = (void *)(udp_hdr + 1);
     udp_data_len = pkt_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
 
-    // If the provided buffer is large enough to store it, then copy the whole packet, else only part of it
+    // If the provided buffer is too small for the entire packet, truncate it
     if (udp_data_len >= len) {
-        eff_len = udp_data_len;
-    } else {
         eff_len = len;
+    } else {
+        eff_len = udp_data_len;
     }
 
     // Copy the data to the buffer provided by the user
