@@ -16,6 +16,7 @@
 #include <rte_memory.h>
 #include <rte_memzone.h>
 
+#include <netinet/in.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -29,6 +30,7 @@ struct exch_slot_info {
     int bound;      // used by a socket that did 'bind'
     int sockfd;     // TODO redundant because it matches the slot index in this implementation
     int udp_port;   // UDP port associated to the socket (only if bound)
+    struct in_addr ip_addr;     // IPv4 address associated to the socket (only if bound)
 } __rte_cache_aligned;
 
 struct exch_zone_info {
@@ -46,6 +48,7 @@ struct exch_slot {
 typedef struct {
     struct rte_ether_addr src_mac_addr;
     struct rte_ether_addr dst_mac_addr;
+    struct in_addr src_ip_addr;
     char lcores_primary[MAX_ARG_LEN];
     char lcores_secondary[MAX_ARG_LEN];
     int n_mem_channels;

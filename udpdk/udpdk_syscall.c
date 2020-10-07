@@ -125,15 +125,21 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         return -1;
     }
 
-    // Mark the slot as bound
+    // Mark the slot as bound, and store the corresponding IP and port
     exch_zone_desc->slots[sockfd].bound = 1;
     exch_zone_desc->slots[sockfd].udp_port = (int)port;
+    if (addr_in->sin_addr.s_addr == INADDR_ANY) {
+        // If INADDR_ANY, use the address from the configuration file
+        exch_zone_desc->slots[sockfd].ip_addr = config.src_ip_addr;
+    } else {
+        // If the address is explicitly set, bind to that
+        exch_zone_desc->slots[sockfd].ip_addr = addr_in->sin_addr;
+    }
 
     // Insert in the hashtable (port, sock_id)
     htable_insert(udp_port_table, (int)port, sockfd);
     RTE_LOG(INFO, SYSCALL, "Binding port %d to sock_id %d\n", port, sockfd);
 
-    // TODO must bind the IP address too (if INADDR_ANY, pick one)
     return 0;
 }
 
@@ -195,8 +201,6 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     void *udp_data;
     const struct sockaddr_in *dest_addr_in = (struct sockaddr_in *)dest_addr;
 
-    static uint32_t src_ip_addr = RTE_IPV4(2, 100, 31, 172);           // TODO from bind (reversed for endianness)
-
     // Validate the arguments
     if (sendto_validate_args(sockfd, buf, len, flags, dest_addr, addrlen) < 0) {
         return -1;
@@ -238,7 +242,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     ip_hdr->time_to_live = IP_DEFTTL;
     ip_hdr->next_proto_id = IPPROTO_UDP;
     ip_hdr->packet_id = 0;
-    ip_hdr->src_addr = src_ip_addr;   // TODO this should be determined by bind()
+    ip_hdr->src_addr = exch_zone_desc->slots[sockfd].ip_addr.s_addr;
     ip_hdr->dst_addr = dest_addr_in->sin_addr.s_addr;
     ip_hdr->total_length = rte_cpu_to_be_16(len + sizeof(*ip_hdr) + sizeof(*udp_hdr));
     ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
