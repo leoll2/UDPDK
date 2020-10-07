@@ -342,7 +342,7 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
     udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
     udp_data = (void *)(udp_hdr + 1);
-    udp_data_len = pkt_len - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
+    udp_data_len = pkt_len - sizeof(struct rte_ether_hdr) - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
 
     // If the provided buffer is too small for the entire packet, truncate it
     if (udp_data_len >= len) {
