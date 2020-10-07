@@ -15,6 +15,7 @@
 #define RTE_LOGTYPE_SYSCALL RTE_LOGTYPE_USER1
 
 extern int interrupted;
+extern configuration config;
 extern htable_item *udp_port_table;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
@@ -194,9 +195,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     void *udp_data;
     const struct sockaddr_in *dest_addr_in = (struct sockaddr_in *)dest_addr;
 
-    static struct rte_ether_addr src_eth_addr = { {0x68, 0x05, 0xca, 0x95, 0xf8, 0xec} };   // TODO from configuration
-    static uint32_t src_ip_addr = RTE_IPV4(2, 100, 31, 172);                                // TODO from bind (reversed for endianness)
-    static struct rte_ether_addr dst_eth_addr = { {0x68, 0x05, 0xca, 0x95, 0xfa, 0x64} };   // TODO from configuration
+    static uint32_t src_ip_addr = RTE_IPV4(2, 100, 31, 172);           // TODO from bind (reversed for endianness)
 
     // Validate the arguments
     if (sendto_validate_args(sockfd, buf, len, flags, dest_addr, addrlen) < 0) {
@@ -226,8 +225,8 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
 
     // Initialize the Ethernet header
     eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
-    rte_ether_addr_copy(&src_eth_addr, &eth_hdr->s_addr);
-    rte_ether_addr_copy(&dst_eth_addr, &eth_hdr->d_addr);
+    rte_ether_addr_copy(&config.src_mac_addr, &eth_hdr->s_addr);
+    rte_ether_addr_copy(&config.dst_mac_addr, &eth_hdr->d_addr);
     eth_hdr->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
 
     // Initialize the IP header
