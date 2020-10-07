@@ -25,6 +25,7 @@
 
 #define ETH_HDR_LEN 14
 #define IP_HDR_LEN  20
+#define UDP_HDR_LEN 8
 
 const char mydata[2048] = {
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Aliquam varius semper faucibus. Vivamus consectetur pharetra massa. Nam at tellus semper, eleifend tellus elementum, pulvinar odio. Ut accumsan ligula ac ex rhoncus, nec pretium urna pharetra. Suspendisse potenti. Duis vel enim vel tellus dictum vehicula eu vitae elit. Etiam at lacus varius diam rutrum accumsan quis sed velit. Nulla tortor mi, congue sit amet malesuada sit amet, pellentesque ac mi. Nunc feugiat mi vitae turpis elementum maximus. Sed malesuada mi ac rhoncus condimentum. Nunc venenatis, libero a pharetra molestie, risus orci tempus arcu, sit amet molestie ipsum purus ac urna. Nunc nec ligula massa. Aenean ut libero ut erat tincidunt aliquet."
@@ -76,7 +77,7 @@ static void send_body(void)
         destaddr.sin_family = AF_INET;
         destaddr.sin_addr.s_addr = inet_addr(IP_RECV);
         destaddr.sin_port = htons(PORT_RECV);
-        udpdk_sendto(sock, (void *)mydata, pktlen - ETH_HDR_LEN - IP_HDR_LEN, 0,
+        udpdk_sendto(sock, (void *)mydata, pktlen - ETH_HDR_LEN - IP_HDR_LEN - UDP_HDR_LEN, 0,
                 (const struct sockaddr *) &destaddr, sizeof(destaddr));
 
         // TODO rate
@@ -125,7 +126,7 @@ static void usage(void)
     printf("%s -c CONFIG -f FUNCTION \n"
             " -c CONFIG: .ini configuration file"
             " -f FUNCTION: 'send' or 'recv'\n"
-            " -l LEN: packet length\n"
+            " -l LEN: payload length (not including ETH, IPv4 and UDP headers) \n"
             , progname);
 }
 
