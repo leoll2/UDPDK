@@ -255,7 +255,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     udp_hdr->dgram_len = rte_cpu_to_be_16(len + sizeof(*udp_hdr));
 
     // Fill other DPDK metadata
-    pkt->nb_segs = 1;
+    pkt->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_UDP;
     pkt->pkt_len = len + sizeof(*eth_hdr) + sizeof(*ip_hdr) + sizeof(*udp_hdr);
     pkt->data_len = pkt->pkt_len;
     pkt->l2_len = sizeof(struct rte_ether_hdr);
@@ -313,14 +313,16 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
 {
     int ret = -1;
     struct rte_mbuf *pkt = NULL;
-    uint32_t pkt_len;
-    uint32_t udp_data_len;
-    uint32_t eff_len;
+    struct rte_mbuf *seg = NULL;
+    uint32_t seg_len;           // number of bytes of payload in this segment
+    uint32_t eff_len;           // number of bytes to read from this segment
     uint32_t eff_addrlen;
+    uint32_t bytes_left = len;
+    unsigned nb_segs;
+    unsigned offset_payload;
     struct rte_ether_hdr *eth_hdr;
     struct rte_ipv4_hdr *ip_hdr;
     struct rte_udp_hdr *udp_hdr;
-    void *udp_data;
 
     // Validate the arguments
     if (recvfrom_validate_args(sockfd, buf, len, flags, src_addr, addrlen) < 0) {
@@ -336,23 +338,12 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
         errno = EINTR;
         return -1;
     }
+
     // Get some useful pointers to headers and data
-    pkt_len = pkt->pkt_len;
+    nb_segs = pkt->nb_segs;
     eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
     ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
     udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
-    udp_data = (void *)(udp_hdr + 1);
-    udp_data_len = pkt_len - sizeof(struct rte_ether_hdr) - sizeof(struct rte_ipv4_hdr) - sizeof(struct rte_udp_hdr);
-
-    // If the provided buffer is too small for the entire packet, truncate it
-    if (udp_data_len >= len) {
-        eff_len = len;
-    } else {
-        eff_len = udp_data_len;
-    }
-
-    // Copy the data to the buffer provided by the user
-    memcpy(buf, udp_data, eff_len);
 
     // Write source address (or part of it if addrlen is too short)
     if (src_addr != NULL) {
@@ -370,11 +361,34 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
         *addrlen = eff_addrlen;
     }
 
-    // Free the mbuf
+    seg = pkt;
+    for (int s = 0; s < nb_segs; s++) {
+        // The the first segment includes eth + ipv4 + udp headers before the payload
+        offset_payload = (s == 0) ?
+                sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) : 0;
+        // Find how many bytes of data are in this segment
+        seg_len = seg->data_len - offset_payload;
+        // The amount of data to copy is the minimum between this segment length and the remaining requested bytes
+        if (seg_len < bytes_left) {
+            eff_len = seg_len;
+        } else {
+            eff_len = bytes_left;
+        }
+        // Copy payload into buffer
+        memcpy(buf, rte_pktmbuf_mtod(seg, void *) + offset_payload, eff_len);
+        // Adjust pointers and counters
+        buf += eff_len;
+        bytes_left -= eff_len;
+        seg = seg->next;
+        if (bytes_left == 0) {
+            break;
+        }
+    }
+    // Free the mbuf (with all the chained segments)
     rte_pktmbuf_free(pkt);
 
     // Return how many bytes read
-    return eff_len;
+    return len - bytes_left;
 }
 
 static int close_validate_args(int s)

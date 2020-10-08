@@ -24,6 +24,9 @@
 #define PKTMBUF_POOL_DIRECT_TX_NAME     "UDPDK_mbuf_pool_direct_TX"
 #define PKTMBUF_POOL_INDIRECT_TX_NAME   "UDPDK_mbuf_pool_indir_TX"
 
+/* Ethernet */
+#define JUMBO_FRAME_MAX_SIZE    0x2600
+
 /* IPv4 Fragmentation */
 #define NUM_FLOWS_DEF       0x1000
 #define NUM_FLOWS_MIN       1

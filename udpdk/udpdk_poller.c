@@ -403,8 +403,10 @@ void poller_body(void)
                             new_eth_hdr->ether_type = old_eth_hdr->ether_type;
                             rte_ether_addr_copy(&old_eth_hdr->s_addr, &new_eth_hdr->s_addr);
                             rte_ether_addr_copy(&old_eth_hdr->d_addr, &new_eth_hdr->d_addr);
+                            pkt->packet_type = RTE_PTYPE_L2_ETHER | RTE_PTYPE_L3_IPV4 | RTE_PTYPE_L4_UDP;
                             pkt->ol_flags |= ol_flags;
                             pkt->l2_len = sizeof(struct rte_ether_hdr);
+                            pkt->l3_len = sizeof(struct rte_ipv4_hdr);
                         }
                         tx_count += n_fragments;
                     }
