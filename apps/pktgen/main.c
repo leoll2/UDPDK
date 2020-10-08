@@ -90,6 +90,7 @@ static void recv_body(void)
     int sock, n;
     struct sockaddr_in servaddr, cliaddr;
     char buf[2048];
+    char clientname[100];
 
     printf("RECV mode\n");
 
@@ -116,7 +117,9 @@ static void recv_body(void)
         n = udpdk_recvfrom(sock, (void *)buf, 2048, 0, ( struct sockaddr *) &cliaddr, &len);
         if (n > 0) {
             buf[n] = '\0';
-            printf("Received payload of %d bytes: %s\n", n, buf);
+            printf("Received payload of %d bytes from %s port %d:\n%s\n", n,
+                    inet_ntop(AF_INET,&cliaddr.sin_addr, clientname, sizeof(clientname)),
+                    ntohs(cliaddr.sin_port), buf);
         }
     }
 }
