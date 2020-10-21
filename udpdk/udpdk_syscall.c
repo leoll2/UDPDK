@@ -38,7 +38,7 @@ static int socket_validate_args(int domain, int type, int protocol)
     }
 
     // Protocol must be 0
-    if (protocol != 0) {
+    if (protocol != 0 && protocol != IPPROTO_UDP) {
         errno = EINVAL;
         RTE_LOG(ERR, SYSCALL, "Attemp to create UDPDK socket of unsupported protocol (%d)\n", protocol);
         return -1;
