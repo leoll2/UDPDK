@@ -92,7 +92,6 @@ install:
 	cp -f udpdk_lookup_table.h ${PREFIX_INCLUDE}/udpdk_lookup_table.h
 	cp -f udpdk_poller.h ${PREFIX_INCLUDE}/udpdk_poller.h
 	cp -f udpdk_types.h ${PREFIX_INCLUDE}/udpdk_types.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_types.h
 
 uninstall:
 	rm -rf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
