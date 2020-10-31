@@ -456,5 +456,6 @@ void poller_body(void)
         }
     }
     // Exit directly to avoid returning in the application main (as we forked)
+    RTE_LOG(INFO, POLLBODY, "Polling process exiting.\n");
     exit(0);
 }
