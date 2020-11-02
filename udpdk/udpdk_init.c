@@ -20,6 +20,7 @@
 #include <rte_memory.h>
 #include <rte_memzone.h>
 
+#include "list.h"
 #include "udpdk_api.h"
 #include "udpdk_args.h"
 #include "udpdk_constants.h"
@@ -34,7 +35,6 @@
 extern int interrupted;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
-extern htable_item *udp_port_table;
 extern struct rte_mempool *rx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_direct_pool;
@@ -303,6 +303,9 @@ int udpdk_init(int argc, char *argv[])
             return -1;
         }
 
+        // Initialize the list allocators
+        udpdk_list_init();
+
         // Initialize pools of mbuf
         retval = init_mbuf_pools();
         if (retval < 0) {
@@ -385,4 +388,6 @@ void udpdk_cleanup(void)
         rte_eth_dev_stop(port_id);
         rte_eth_dev_close(port_id);
     }
+
+    udpdk_list_deinit();
 }

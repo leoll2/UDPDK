@@ -10,6 +10,7 @@
 #define MIN(a,b) ((a) < (b) ? a : b)
 
 #define NUM_SOCKETS_MAX     1024
+#define UDP_MAX_PORT        65536
 
 /* DPDK ports */
 #define PORT_RX     0

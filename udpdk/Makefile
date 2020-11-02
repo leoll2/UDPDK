@@ -33,12 +33,14 @@ CFLAGS+= --param large-function-growth=1000
 DPDK_CFLAGS= -DRTE_MACHINE_CPUFLAG_SSE -DRTE_MACHINE_CPUFLAG_SSE2 -DRTE_MACHINE_CPUFLAG_SSE3
 DPDK_CFLAGS+= -DRTE_MACHINE_CPUFLAG_SSSE3 -DRTE_MACHINE_CPUFLAG_SSE4_1 -DRTE_MACHINE_CPUFLAG_SSE4_2
 DPDK_CFLAGS+= -DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_CPUFLAG_SSE3,RTE_CPUFLAG_SSSE3,RTE_CPUFLAG_SSE4_1,RTE_CPUFLAG_SSE4_2
-DPDK_CFLAGS+= -I${UDPDK_DPDK}/include
-DPDK_CFLAGS+= -I${INIH}
 
-UDPDK_C= ${CC} -c $(DPDK_CFLAGS) ${CFLAGS} ${WERROR} $<
+UDPDK_CFLAGS+= -I${UDPDK_DPDK}/include
+UDPDK_CFLAGS+= -I${INIH}
+UDPDK_CFLAGS+= -Ilist -Ishmalloc
 
-UDPDK_SRCS+=         \
+UDPDK_C= ${CC} -c $(DPDK_CFLAGS) $(UDPDK_CFLAGS) ${CFLAGS} ${WERROR} $<
+
+UDPDK_CORE_SRCS+=    \
 	udpdk_args.c     \
 	udpdk_globals.c  \
 	udpdk_init.c     \
@@ -46,8 +48,19 @@ UDPDK_SRCS+=         \
 	udpdk_poller.c   \
 	udpdk_syscall.c  \
 
+UDPDK_LIST_SRCS+=    \
+    list/list.c      \
+    list/list_node.c \
+    list/list_iterator.c \
+    list/list_globals.c \
+    list/list_init.c
 
-SRCS= ${UDPDK_SRCS}
+UDPDK_SHM_SRCS+=
+    shmalloc/udpdk_shmalloc.c \
+
+SRCS+= ${UDPDK_CORE_SRCS} 
+SRCS+= ${UDPDK_LIST_SRCS}
+SRCS+= ${UDPDK_SHM_SRCS}
 
 OBJS+= $(patsubst %.c,%.o,${SRCS})
 
@@ -67,7 +80,7 @@ libudpdk.a: ${OBJS}
 	rm -f $*.ro
 
 ${OBJS}: %.o: %.c
-	${UDPDK_C}
+	${UDPDK_C} -o $@
 
 .PHONY: clean
 clean:

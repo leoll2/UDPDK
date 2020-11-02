@@ -22,8 +22,17 @@
 #include <unistd.h>
 
 #include "udpdk_constants.h"
+#include "list.h"
 
 enum exch_ring_func {EXCH_RING_RX, EXCH_RING_TX};
+
+struct bind_info {
+    int sockfd;         // socket fd of the (addr, port) pair
+    struct in_addr ip_addr;     // IPv4 address associated to the socket
+    bool reuse_addr;    // SO_REUSEADDR
+    bool reuse_port;    // SO_REUSEPORT
+    bool closed;        // mark this binding as closed
+};
 
 struct exch_slot_info {
     int used;       // used by an open socket

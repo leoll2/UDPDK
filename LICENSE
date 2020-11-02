@@ -35,3 +35,5 @@ This software uses code from:
     License: BSD 3-Clause
 - inih: https://github.com/benhoyt/inih
     License: BSD 3-Clause
+- list: https://github.com/clibs/list
+    License: MIT
