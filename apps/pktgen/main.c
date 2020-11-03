@@ -129,7 +129,7 @@ static void usage(void)
     printf("%s -c CONFIG -f FUNCTION \n"
             " -c CONFIG: .ini configuration file"
             " -f FUNCTION: 'send' or 'recv'\n"
-            " -l LEN: payload length (not including ETH, IPv4 and UDP headers) \n"
+            " -l LEN: packet length (including 42 bytes for ETH, IPv4 and UDP headers)\n"
             , progname);
 }
 

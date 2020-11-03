@@ -318,6 +318,7 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     uint32_t eff_len;           // number of bytes to read from this segment
     uint32_t eff_addrlen;
     uint32_t bytes_left = len;
+    uint16_t dgram_payl_len;    // UDP payload len, inferred from UDP header
     unsigned nb_segs;
     unsigned offset_payload;
     struct rte_ether_hdr *eth_hdr;
@@ -344,6 +345,7 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
     eth_hdr = rte_pktmbuf_mtod(pkt, struct rte_ether_hdr *);
     ip_hdr = (struct rte_ipv4_hdr *)(eth_hdr + 1);
     udp_hdr = (struct rte_udp_hdr *)(ip_hdr + 1);
+    dgram_payl_len = rte_be_to_cpu_16(udp_hdr->dgram_len) - sizeof(struct rte_udp_hdr);
 
     // Write source address (or part of it if addrlen is too short)
     if (src_addr != NULL) {
@@ -368,6 +370,10 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
                 sizeof(struct rte_ether_hdr) + sizeof(struct rte_ipv4_hdr) + sizeof(struct rte_udp_hdr) : 0;
         // Find how many bytes of data are in this segment
         seg_len = seg->data_len - offset_payload;
+        if ((s == 0) && (seg_len > dgram_payl_len)) {
+            // for very small packets, Ethernet payload is padded to 46 bytes
+            seg_len = dgram_payl_len;
+        }
         // The amount of data to copy is the minimum between this segment length and the remaining requested bytes
         if (seg_len < bytes_left) {
             eff_len = seg_len;
