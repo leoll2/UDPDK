@@ -10,13 +10,12 @@
 #include <rte_random.h>
 
 #include "udpdk_api.h"
-#include "udpdk_lookup_table.h"
+#include "udpdk_bind_table.h"
 
 #define RTE_LOGTYPE_SYSCALL RTE_LOGTYPE_USER1
 
 extern int interrupted;
 extern configuration config;
-extern htable_item *udp_port_table;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern struct rte_mempool *tx_pktmbuf_pool;
@@ -65,6 +64,7 @@ int udpdk_socket(int domain, int type, int protocol)
             exch_zone_desc->slots[sock_id].used = 1;
             exch_zone_desc->slots[sock_id].bound = 0;
             exch_zone_desc->slots[sock_id].sockfd = sock_id;
+            exch_zone_desc->slots[sock_id].so_options = 0;
             break;
         }
     }
@@ -78,6 +78,117 @@ int udpdk_socket(int domain, int type, int protocol)
     exch_zone_desc->n_zones_active++;
 
     return sock_id;
+}
+
+static int getsetsockopt_validate_args(int sockfd, int level, int optname,
+        const void *optval, socklen_t *optlen)
+{
+    // Check if the sockfd is valid
+    if (!exch_zone_desc->slots[sockfd].used) {
+        errno = EBADF;
+        RTE_LOG(ERR, SYSCALL, "Invalid socket descriptor (%d)\n", sockfd);
+        return -1;
+    }
+
+    // Check that level is supported
+    if (level != SOL_SOCKET) {
+        RTE_LOG(ERR, SYSCALL, "Level %d does not exist or is unsupported\n", level);
+        errno = EINVAL;
+        return -1;
+    }
+
+    // Check if option is supported
+    switch (optname) {
+        case SO_REUSEADDR:
+            break;
+        case SO_REUSEPORT:
+            break;
+        default:
+            errno = ENOPROTOOPT;
+            RTE_LOG(ERR, SYSCALL, "Invalid or unsupported option %d at level %d\n", optname, level);
+            return -1;
+    }
+
+    // Check that optval and optlen are not NULL
+    if (optval == NULL || optlen == NULL) {
+        errno = EFAULT;
+        RTE_LOG(ERR, SYSCALL, "optval and optlen cannot be NULL\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int udpdk_getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen)
+{
+    // Validate the arguments
+    if (getsetsockopt_validate_args(sockfd, level, optname, optval, optlen) < 0) {
+        return -1;
+    }
+    // Handle the request
+    switch (level) {
+        case SOL_SOCKET:
+            switch (optname) {
+                case SO_REUSEADDR:
+                    *(int *)optval = ((exch_zone_desc->slots[sockfd].so_options & SO_REUSEADDR) != 0);
+                    break;
+                case SO_REUSEPORT:
+                    *(int *)optval = ((exch_zone_desc->slots[sockfd].so_options & SO_REUSEPORT) != 0);
+                    break;
+                default:
+                    errno = ENOPROTOOPT;
+                    RTE_LOG(ERR, SYSCALL, "Invalid or unsupported option %d at level %d\n", optname, level);
+                    return -1;
+            }
+            break;
+        default:
+            errno = EINVAL;
+            RTE_LOG(ERR, SYSCALL, "Level %d does not exist or is unsupported\n", level);
+            return -1;
+    }
+    return 0;
+}
+
+int udpdk_setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t optlen)
+{
+    int prev_set;
+
+    // Validate the arguments
+    if (getsetsockopt_validate_args(sockfd, level, optname, optval, &optlen) < 0) {
+        return -1;
+    }
+    // Handle the request
+    switch (level) {
+        case SOL_SOCKET:
+            switch (optname) {
+                case SO_REUSEADDR:
+                    prev_set = exch_zone_desc->slots[sockfd].so_options & SO_REUSEADDR;
+                    if ((*(int *)optval != 0) && (!prev_set)) {         // set
+                        exch_zone_desc->slots[sockfd].so_options |= SO_REUSEADDR;
+                    } else if ((*(int *)optval == 0) && (prev_set)) {   // reset
+                        exch_zone_desc->slots[sockfd].so_options &= ~SO_REUSEADDR;
+                    }
+                    break;
+                case SO_REUSEPORT:
+                    prev_set = exch_zone_desc->slots[sockfd].so_options & SO_REUSEPORT;
+                    if ((*(int *)optval != 0) && (!prev_set)) {         // set
+                        exch_zone_desc->slots[sockfd].so_options |= SO_REUSEPORT;
+                    } else if ((*(int *)optval == 0) && (prev_set)) {   // reset
+                        exch_zone_desc->slots[sockfd].so_options &= ~SO_REUSEPORT;
+                    }
+                    break;
+                default:
+                    errno = ENOPROTOOPT;
+                    RTE_LOG(ERR, SYSCALL, "Invalid or unsupported option %d at level %d\n", optname, level);
+                    return -1;
+            }
+            break;
+        default:
+            errno = EINVAL;
+            RTE_LOG(ERR, SYSCALL, "Level %d does not exist or is unsupported\n", level);
+            return -1;
+    }
+    return 0;
 }
 
 static int bind_validate_args(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
@@ -116,29 +227,21 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         return -1;
     }
 
-    // Check if the port is already being used
+    // Try to bind the socket
     port = addr_in->sin_port;
-    ret = htable_lookup(udp_port_table, port);
+    ret = btable_add_binding(sockfd, addr_in->sin_addr, port, exch_zone_desc->slots[sockfd].so_options);
     if (ret != -1) {
-        errno = EINVAL;
-        RTE_LOG(ERR, SYSCALL, "Failed to bind because port %d is already in use\n", port);
+        errno = EADDRINUSE;
+        RTE_LOG(ERR, SYSCALL, "Failed to bind because port %d is already in use\n", ntohs(port));
         return -1;
     }
 
     // Mark the slot as bound, and store the corresponding IP and port
     exch_zone_desc->slots[sockfd].bound = 1;
     exch_zone_desc->slots[sockfd].udp_port = (int)port;
-    if (addr_in->sin_addr.s_addr == INADDR_ANY) {
-        // If INADDR_ANY, use the address from the configuration file
-        exch_zone_desc->slots[sockfd].ip_addr = config.src_ip_addr;
-    } else {
-        // If the address is explicitly set, bind to that
-        exch_zone_desc->slots[sockfd].ip_addr = addr_in->sin_addr;
-    }
+    exch_zone_desc->slots[sockfd].ip_addr = addr_in->sin_addr;
 
-    // Insert in the hashtable (port, sock_id)
-    htable_insert(udp_port_table, (int)port, sockfd);
-    RTE_LOG(INFO, SYSCALL, "Binding port %d to sock_id %d\n", port, sockfd);
+    RTE_LOG(INFO, SYSCALL, "Binding port %d to sock_id %d\n", ntohs(port), sockfd);
 
     return 0;
 }
@@ -174,23 +277,6 @@ static int sendto_validate_args(int sockfd, const void *buf, size_t len, int fla
     return 0;
 }
 
-// TODO move this elsewhere
-static int get_free_udp_port(void)
-{
-    int port;
-    if (exch_zone_desc->n_zones_active == NUM_SOCKETS_MAX) {
-        // No port available
-        return -1;
-    }
-
-    // Generate a random unused port
-    do {
-        port = (uint16_t)rte_rand();
-    } while (htable_lookup(udp_port_table, port) != -1);
-
-    return port;
-}
-
 ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
                      const struct sockaddr *dest_addr, socklen_t addrlen)
 {
@@ -212,7 +298,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
         memset(&saddr_in, 0, sizeof(saddr_in));
         saddr_in.sin_family = AF_INET;
         saddr_in.sin_addr.s_addr = INADDR_ANY;
-        saddr_in.sin_port = get_free_udp_port();
+        saddr_in.sin_port = btable_get_free_port();
         if (udpdk_bind(sockfd, (const struct sockaddr *)&saddr_in, sizeof(saddr_in)) < 0) {
             RTE_LOG(ERR, SYSCALL, "Send failed to bind\n");
             return -1;
@@ -242,7 +328,12 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
     ip_hdr->time_to_live = IP_DEFTTL;
     ip_hdr->next_proto_id = IPPROTO_UDP;
     ip_hdr->packet_id = 0;
-    ip_hdr->src_addr = exch_zone_desc->slots[sockfd].ip_addr.s_addr;
+    if ((exch_zone_desc->slots[sockfd].bound)
+            && (exch_zone_desc->slots[sockfd].ip_addr.s_addr != INADDR_ANY)) {
+        ip_hdr->src_addr = exch_zone_desc->slots[sockfd].ip_addr.s_addr;
+    } else {
+        ip_hdr->src_addr = config.src_ip_addr.s_addr;
+    }
     ip_hdr->dst_addr = dest_addr_in->sin_addr.s_addr;
     ip_hdr->total_length = rte_cpu_to_be_16(len + sizeof(*ip_hdr) + sizeof(*udp_hdr));
     ip_hdr->hdr_checksum = rte_ipv4_cksum(ip_hdr);
@@ -409,9 +500,15 @@ int udpdk_close(int s)
         return -1;
     }
 
+    // Unbind
+    if (exch_zone_desc->slots[s].bound) {
+        btable_del_binding(s, exch_zone_desc->slots[s].udp_port);
+    }
+
     // Reset slot
     exch_zone_desc->slots[s].bound = 0;
     exch_zone_desc->slots[s].used = 0;
+    exch_zone_desc->slots[s].so_options = 0;
 
     // Decrement counter of active slots
     exch_zone_desc->n_zones_active++;

@@ -2,6 +2,8 @@ udpdk_init
 udpdk_interrupt
 udpdk_cleanup
 udpdk_socket
+udpdk_getsockopt
+udpdk_setsockopt
 udpdk_bind
 udpdk_sendto
 udpdk_recvfrom

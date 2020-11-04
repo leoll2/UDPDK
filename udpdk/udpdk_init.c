@@ -20,11 +20,11 @@
 #include <rte_memory.h>
 #include <rte_memzone.h>
 
-#include "list.h"
+#include "udpdk_list.h"
 #include "udpdk_api.h"
 #include "udpdk_args.h"
 #include "udpdk_constants.h"
-#include "udpdk_lookup_table.h"
+#include "udpdk_bind_table.h"
 #include "udpdk_poller.h"
 #include "udpdk_types.h"
 
@@ -39,6 +39,7 @@ extern struct rte_mempool *rx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_direct_pool;
 extern struct rte_mempool *tx_pktmbuf_indirect_pool;
+extern list_t **sock_bind_table;
 extern int primary_argc;
 extern int secondary_argc;
 extern char *primary_argv[MAX_ARGC];
@@ -238,17 +239,17 @@ static int init_shared_memzone(void)
 }
 
 /* Initialize table in shared memory for UDP port switching */
-static int init_udp_table(void)
+static int init_udp_bind_table(void)
 {
     const struct rte_memzone *mz;
 
-    mz = rte_memzone_reserve(UDP_PORT_TABLE_NAME, NUM_SOCKETS_MAX * sizeof(htable_item), rte_socket_id(), 0);
+    mz = rte_memzone_reserve(UDP_BIND_TABLE_NAME, UDP_MAX_PORT * sizeof(struct list_t *), rte_socket_id(), 0);
     if (mz == NULL) {
-        RTE_LOG(ERR, INIT, "Cannot allocate shared memory for UDP port switching table\n");
+        RTE_LOG(ERR, INIT, "Cannot allocate shared memory for L4 switching table\n");
         return -1;
     }
-    udp_port_table = mz->addr;
-    htable_init(udp_port_table);
+    sock_bind_table = mz->addr;
+    btable_init();
     return 0;
 }
 
@@ -339,7 +340,7 @@ int udpdk_init(int argc, char *argv[])
             return -1;
         }
 
-        retval = init_udp_table();
+        retval = init_udp_bind_table();
         if (retval < 0) {
             RTE_LOG(ERR, INIT, "Cannot create table for UDP port switching\n");
             return -1;

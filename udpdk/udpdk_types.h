@@ -17,12 +17,13 @@
 #include <rte_memzone.h>
 
 #include <netinet/in.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include "udpdk_constants.h"
-#include "list.h"
+#include "udpdk_list.h"
 
 enum exch_ring_func {EXCH_RING_RX, EXCH_RING_TX};
 
@@ -40,6 +41,7 @@ struct exch_slot_info {
     int sockfd;     // TODO redundant because it matches the slot index in this implementation
     int udp_port;   // UDP port associated to the socket (only if bound)
     struct in_addr ip_addr;     // IPv4 address associated to the socket (only if bound)
+    int so_options; // socket options
 } __rte_cache_aligned;
 
 struct exch_zone_info {

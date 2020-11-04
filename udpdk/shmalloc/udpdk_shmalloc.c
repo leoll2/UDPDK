@@ -5,7 +5,13 @@
 
 #include <string.h>
 
+#include <rte_common.h>
+#include <rte_memory.h>
+#include <rte_memzone.h>
+
 #include "udpdk_shmalloc.h"
+
+#define RTE_LOGTYPE_SHM  RTE_LOGTYPE_USER1
 
 #define SetBit(A,k)     (A[(k / 32)] |= (1 << (k % 32)))
 #define ClearBit(A,k)   (A[(k / 32)] &= ~(1 << (k % 32)))
@@ -55,6 +61,11 @@ const struct rte_memzone *udpdk_init_allocator(const char *name, unsigned size, 
     memset((void *)free_bitfield, 0, (size / 8 + 1));
 
     return mz;
+}
+
+const struct rte_memzone *udpdk_retrieve_allocator(const char *name)
+{
+    return rte_memzone_lookup(name);
 }
 
 void *udpdk_shmalloc(const struct rte_memzone *mz)

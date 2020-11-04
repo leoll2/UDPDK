@@ -36,7 +36,7 @@ DPDK_CFLAGS+= -DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_SSE,RTE_CPUFLAG_SSE2,RTE_C
 
 UDPDK_CFLAGS+= -I${UDPDK_DPDK}/include
 UDPDK_CFLAGS+= -I${INIH}
-UDPDK_CFLAGS+= -Ilist -Ishmalloc
+UDPDK_CFLAGS+= -I. -Ilist -Ishmalloc
 
 UDPDK_C= ${CC} -c $(DPDK_CFLAGS) $(UDPDK_CFLAGS) ${CFLAGS} ${WERROR} $<
 
@@ -44,18 +44,18 @@ UDPDK_CORE_SRCS+=    \
 	udpdk_args.c     \
 	udpdk_globals.c  \
 	udpdk_init.c     \
-	udpdk_lookup_table.c \
+	udpdk_bind_table.c \
 	udpdk_poller.c   \
 	udpdk_syscall.c  \
 
 UDPDK_LIST_SRCS+=    \
-    list/list.c      \
-    list/list_node.c \
-    list/list_iterator.c \
-    list/list_globals.c \
-    list/list_init.c
+    list/udpdk_list.c      \
+    list/udpdk_list_node.c \
+    list/udpdk_list_iterator.c \
+    list/udpdk_list_globals.c \
+    list/udpdk_list_init.c
 
-UDPDK_SHM_SRCS+=
+UDPDK_SHM_SRCS+=    \
     shmalloc/udpdk_shmalloc.c \
 
 SRCS+= ${UDPDK_CORE_SRCS} 
@@ -88,31 +88,20 @@ clean:
 	rm -f ${OBJS} ${PROGRAM}
 
 install:
-	rm -rf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
-	rm -rf ${PREFIX_LIB}/libudpdk.a
-	rm -rf ${PREFIX_INCLUDE}/udpdk_api.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_args.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_constants.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_poller.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_types.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_lookup_table.h
+	rm -f ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
+	rm -f ${PREFIX_LIB}/libudpdk.a
+	rm -f ${PREFIX_INCLUDE}/udpdk_*.h
+	rm -f ${PREFIX_INCLUDE}/list/udpdk_*.h
+	rm -f ${PREFIX_INCLUDE}/shmalloc/udpdk_*.h
 
 	cp -f libudpdk.a ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	ln -sf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION} ${PREFIX_LIB}/libudpdk.a
-	cp -f udpdk_api.h ${PREFIX_INCLUDE}/udpdk_api.h
-	cp -f udpdk_api.h ${PREFIX_INCLUDE}/udpdk_args.h
-	cp -f udpdk_constants.h ${PREFIX_INCLUDE}/udpdk_constants.h
-	cp -f udpdk_lookup_table.h ${PREFIX_INCLUDE}/udpdk_lookup_table.h
-	cp -f udpdk_poller.h ${PREFIX_INCLUDE}/udpdk_poller.h
-	cp -f udpdk_types.h ${PREFIX_INCLUDE}/udpdk_types.h
+	cp -f udpdk_*.h ${PREFIX_INCLUDE}/
+	cp -f list/udpdk_*.h ${PREFIX_INCLUDE}/
+	cp -f shmalloc/udpdk_*.h ${PREFIX_INCLUDE}/
 
 uninstall:
-	rm -rf ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
-	rm -rf ${PREFIX_LIB}/libudpdk.a
-	rm -rf ${PREFIX_INCLUDE}/udpdk_api.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_args.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_constants.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_poller.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_types.h
-	rm -rf ${PREFIX_INCLUDE}/udpdk_lookup_table.h
+	rm -f ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
+	rm -f ${PREFIX_LIB}/libudpdk.a
+	rm -f ${PREFIX_INCLUDE}/udpdk_*.h
 

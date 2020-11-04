@@ -9,15 +9,6 @@
 #include "udpdk_constants.h"
 #include "udpdk_types.h"
 
-/*
-void htable_init(htable_item *table);
-
-int htable_insert(htable_item *table, int key, int val);
-
-int htable_lookup(htable_item *table, int key);
-
-int htable_delete(htable_item *table, int key);
-*/
 
 void btable_init(void);
 

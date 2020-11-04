@@ -12,6 +12,8 @@
 
 const struct rte_memzone *udpdk_init_allocator(const char *name, unsigned size, unsigned elem_size);
 
+const struct rte_memzone *udpdk_retrieve_allocator(const char *name);
+
 void *udpdk_shmalloc(const struct rte_memzone *mz);
 
 void udpdk_shfree(const struct rte_memzone *mz, void *addr);

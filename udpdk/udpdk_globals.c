@@ -4,7 +4,6 @@
 //
 
 #include "udpdk_constants.h"
-#include "udpdk_lookup_table.h"
 #include "udpdk_types.h"
 
 volatile int interrupted = 0;
