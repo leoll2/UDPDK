@@ -34,7 +34,7 @@ Table of Contents
 ## Requirements
 
 In order to use UDPDK, your machines must be equipped with DPDK-enabled NICs; these are typically found in servers, not in laptops and desktop machines.
-The list of hardware officially supported by DPDK is available [here](https://core.dpdk.org/supported/). Specifically, UDPDK has been developed and tested on *Intel X710-DA2* with *i40e* driver; other devices may still work with minor changes to the framework.
+The list of hardware officially supported by DPDK is available [here](https://core.dpdk.org/supported/). Specifically, UDPDK has been developed and tested on *Intel X710-DA2* with *igb_uio* and *vfio* drivers; other devices may still work, possibly with minor changes to the framework.
 
 ## Install Dependencies
 
