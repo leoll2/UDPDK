@@ -11,6 +11,8 @@
 
 void udpdk_list_init(void);
 
+int udpdk_list_reinit(void);
+
 void udpdk_list_deinit(void);
 
 #endif  // UDPDK_LIST_INIT_H

@@ -38,10 +38,6 @@ static volatile int poller_alive = 1;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern list_t **sock_bind_table;
-extern const void *list_t_alloc;
-extern const void *list_node_t_alloc;
-extern const void *list_iterator_t_alloc;
-extern const void *bind_info_alloc;
 
 /* Descriptor of a RX queue */
 struct rx_queue {
@@ -90,24 +86,8 @@ static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func f
 /* Initialize the allocators */
 static int setup_allocators(void)
 {
-    list_t_alloc = udpdk_retrieve_allocator("list_t_alloc");
-    if (list_t_alloc == NULL) {
-        RTE_LOG(ERR, POLLINIT, "Cannot retrieve list_t allocator\n");
-        return -1;
-    }
-    list_node_t_alloc = udpdk_retrieve_allocator("list_node_t_alloc");
-    if (list_node_t_alloc == NULL) {
-        RTE_LOG(ERR, POLLINIT, "Cannot retrieve list_node_t allocator\n");
-        return -1;
-    }
-    list_iterator_t_alloc = udpdk_retrieve_allocator("list_iterator_t_alloc");
-    if (list_iterator_t_alloc == NULL) {
-        RTE_LOG(ERR, POLLINIT, "Cannot retrieve list_iterator_t allocator\n");
-        return -1;
-    }
-    bind_info_alloc = udpdk_retrieve_allocator("bind_info_alloc");
-    if (bind_info_alloc == NULL) {
-        RTE_LOG(ERR, POLLINIT, "Cannot retrieve bind_info allocator\n");
+    if (udpdk_list_reinit() < 0) {
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve shmem allocators\n");
         return -1;
     }
     return 0;
