@@ -38,7 +38,7 @@ The list of hardware officially supported by DPDK is available [here](https://co
 ## Install Dependencies
 
 UDPDK requires:
-- DPDK 19.11
+- DPDK 20.05
 - inih (any)
 
 They are already included in this repository as submodules, so pull them:
@@ -56,9 +56,9 @@ cd dpdk/usertools
 ```
 From the menu, do the following:
 1. Compile for your specific arch, usually `x86_64-native-linuxapp-gcc`
-2. Load the `igb` module
+2. Load the `vfio` module
 3. Configure hugepages (e.g. 1024M for each NUMA node)
-4. Bind the NIC to igb driver, specifying its PCI address
+4. Bind the NIC to vfio driver, specifying its PCI address
 
 ### inih
 
