@@ -7,9 +7,12 @@
 // the IPs bound to that port (typically one, but can be many)
 //
 
+#include <arpa/inet.h>      // inet_ntop
 #include <netinet/in.h>     // INADDR_ANY
 #include "udpdk_bind_table.h"
 #include "udpdk_shmalloc.h"
+
+#define RTE_LOGTYPE_BTABLE RTE_LOGTYPE_USER1
 
 const void *bind_info_alloc = NULL;
 list_t **sock_bind_table;
@@ -34,13 +37,14 @@ int btable_get_free_port(void)
             return i;
         }
     }
+    RTE_LOG(WARNING, BTABLE, "Failed to find a free port\n");
     return -1;
 }
 
 /* Verify if binding the pair (ip, port) is possible, provided the
  * options and the previous bindings.
  */
-static inline int btable_can_bind(struct in_addr ip, int port, int opts)
+static inline bool btable_can_bind(struct in_addr ip, int port, int opts)
 {
     bool reuse_addr = opts & SO_REUSEADDR;
     bool reuse_port = opts & SO_REUSEPORT;
@@ -52,7 +56,7 @@ static inline int btable_can_bind(struct in_addr ip, int port, int opts)
     bool oth_reuseport;
 
     if (sock_bind_table[port] == NULL) {
-        return 0;
+        return true;
     }
 
     ip_new = ip.s_addr;
@@ -81,11 +85,7 @@ static inline int btable_can_bind(struct in_addr ip, int port, int opts)
     }
 
     list_iterator_destroy(it);
-    if (can_bind) {
-        return 0;
-    } else {
-        return -1;
-    }
+    return can_bind;
 }
 
 int btable_add_binding(int s, struct in_addr ip, int port, int opts)
@@ -95,6 +95,9 @@ int btable_add_binding(int s, struct in_addr ip, int port, int opts)
 
     // Check if binding this pair is allowed
     if (!btable_can_bind(ip, port, opts)) {
+        char buf[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &ip, buf, sizeof(buf));
+        RTE_LOG(WARNING, BTABLE, "Cannot bind socket %d to %s:%d\n", s, buf, ntohs(port));
         return -1;
     }
 

@@ -218,7 +218,6 @@ static int bind_validate_args(int sockfd, const struct sockaddr *addr, socklen_t
 
 int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
-    int ret;
     unsigned short port;
     const struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
 
@@ -229,8 +228,7 @@ int udpdk_bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
     // Try to bind the socket
     port = addr_in->sin_port;
-    ret = btable_add_binding(sockfd, addr_in->sin_addr, port, exch_zone_desc->slots[sockfd].so_options);
-    if (ret != -1) {
+    if (btable_add_binding(sockfd, addr_in->sin_addr, port, exch_zone_desc->slots[sockfd].so_options) < 0) {
         errno = EADDRINUSE;
         RTE_LOG(ERR, SYSCALL, "Failed to bind because port %d is already in use\n", ntohs(port));
         return -1;

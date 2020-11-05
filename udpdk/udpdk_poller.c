@@ -312,6 +312,8 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     uint16_t udp_dst_port;
     unsigned long ip_dst_addr;
     int sock_id;
+    bool delivered_once = false;
+    bool delivered_last = false;
 
     rxq = &qconf->rx_queue;
 
@@ -360,26 +362,39 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     // Find the sock_ids corresponding to the UDP dst port (L4 switching) and enqueue the packet to its queue
     list_t *binds = btable_get_bindings(udp_dst_port);
     if (binds == NULL) {
-        RTE_LOG(WARNING, POLLBODY, "Dropping packet for port %d: no socket bound\n", udp_dst_port);
+        RTE_LOG(WARNING, POLLBODY, "Dropping packet for port %d: no socket bound\n", ntohs(udp_dst_port));
         return;
     }
     list_iterator_t *it = list_iterator_new(binds, LIST_HEAD);
     list_node_t *node;
     while ((node = list_iterator_next(it))) {
-        // TODO hand non trivial cases (see below)
-        /*
-          if dest unicast and not REUSEPORT (LIKELY), enqueue and break
-          if dest unicast and SO_REUSEPORT, should load balance
-          if dest broadcast and SO_REUSEADDR o SO_REUSEPORT, enqueue and continue
-        */
-        if (ip_dst_addr == ((struct bind_info *)(node->val))->ip_addr.s_addr) {
-            break;
+        unsigned long ip_oth = ((struct bind_info *)(node->val))->ip_addr.s_addr;
+        bool oth_reuseaddr = ((struct bind_info *)(node->val))->reuse_addr;
+        bool oth_reuseport = ((struct bind_info *)(node->val))->reuse_port;
+        // TODO the semantic should be more complex actually:
+        //   if dest unicast and SO_REUSEPORT, should load balance
+        //   if dest broadcast and SO_REUSEADDR or SO_REUSEPORT, should deliver to all
+        // If matching
+        if (likely((ip_dst_addr == ip_oth) || (ip_oth == INADDR_ANY))) {
+            // Deliver to this socket
+            enqueue_rx_packet(((struct bind_info *)(node->val))->sockfd, m);
+            delivered_once = true;
+            // If other socket may exist on the same port, keep scanning
+            if (oth_reuseaddr || oth_reuseport) {
+                m = rte_pktmbuf_clone(m, rxq->pool);
+                delivered_last = false;
+                continue;
+            } else {
+                delivered_last = true;
+                break;
+            }
         }
     }
-    if (node != NULL) {
-        enqueue_rx_packet(((struct bind_info *)(node->val))->sockfd, m);
-    } else {
-        RTE_LOG(WARNING, POLLBODY, "Dropping packet for port %d: no socket matching\n", udp_dst_port);
+    if (!delivered_last) {
+        rte_pktmbuf_free(m);
+    }
+    if (!delivered_once) {
+        RTE_LOG(WARNING, POLLBODY, "Dropped packet to port %d: no socket matching\n", ntohs(udp_dst_port));
     }
     list_iterator_destroy(it);
 }
