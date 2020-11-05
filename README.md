@@ -24,9 +24,10 @@ Table of Contents
    * [UDPDK](#udpdk)
       * [Requirements](#requirements)
       * [Install Dependencies](#install-dependencies)
-         * [DPDK](#dpdk)
-         * [inih](#inih)
       * [Install UDPDK](#install-udpdk)
+      * [API](#api)
+      * [Examples](#examples)
+      * [How it works](#how-it-works)
       * [License](#license)
       * [Contributing](#contributing)
 
@@ -47,7 +48,7 @@ git submodule init
 git submodule update
 ```
 
-### DPDK
+**DPDK**
 
 [DPDK](dpdk.org) is the pivotal element of UDPDK. It manages the NIC and implements Ethernet.
 ```
@@ -60,7 +61,7 @@ From the menu, do the following:
 3. Configure hugepages (e.g. 1024M for each NUMA node)
 4. Bind the NIC to vfio driver, specifying its PCI address
 
-### inih
+**inih**
 
 [inih](https://github.com/benhoyt/inih) is used for convenience to parse `.ini` configuration files.
 ```
@@ -70,7 +71,7 @@ cd build
 ninja
 ```
 
-## Install UDPDK
+## Build and install UDPDK
 
 UDPDK builds into a static library, which eventually needs to be linked with the final application.
 
@@ -79,6 +80,37 @@ cd udpdk
 make
 sudo make install
 ```
+
+## API
+
+The API of UDPDK closely resembles that of good old BSD sockets:
+
+```
+int udpdk_socket(int domain, int type, int protocol);
+int udpdk_bind(int s, const struct sockaddr *addr, socklen_t addrlen);
+int getsockopt(int sockfd, int level, int optname, void *optval, socklen_t *optlen);
+int setsockopt(int sockfd, int level, int optname, const void *optval, socklen_t *optlen);
+ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+ssize_t udpdk_recvfrom(int s, void *buf, size_t len, int flags, struct sockaddr *src_addr, socklen_t *addrlen);
+int udpdk_close(int s);
+```
+
+In addition, the following methods are required for the proper setup and teardown of DPDK internals (structures and processes):
+```
+int udpdk_init(int argc, char *argv[]);
+void udpdk_interrupt(int signum);
+void udpdk_cleanup(void);
+```
+
+*Note: select() is not implemented yet*
+
+## Examples
+
+The `apps/` folder contains two simple examples: a [ping-pong](apps/pingpong) and a [pkt-gen](apps/pktgen) application.
+
+## How it works
+
+UDPDK runs in two separate processes: the primary is the one containing the application logic (i.e. where syscalls are called), while the secondary (*poller*) continuously polls the NIC to send and receive data. The packets are exchanged between the application and the poller through shared memory, using lockless ring queues.
 
 ## License
 
