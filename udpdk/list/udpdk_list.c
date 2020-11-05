@@ -8,17 +8,17 @@
 #include "udpdk_list.h"
 #include "udpdk_shmalloc.h"
 
-extern const void *list_t_alloc;
-extern const void *list_node_t_alloc;
+extern const void *udpdk_list_t_alloc;
+extern const void *udpdk_list_node_t_alloc;
 
 /*
- * Allocate a new list_t. NULL on failure.
+ * Allocate a new udpdk_list_t. NULL on failure.
  */
 
-list_t *
+udpdk_list_t *
 list_new(void) {
-  list_t *self;
-  if (!(self = udpdk_shmalloc(list_t_alloc)))
+  udpdk_list_t *self;
+  if (!(self = udpdk_shmalloc(udpdk_list_t_alloc)))
     return NULL;
   self->head = NULL;
   self->tail = NULL;
@@ -33,19 +33,19 @@ list_new(void) {
  */
 
 void
-list_destroy(list_t *self) {
+list_destroy(udpdk_list_t *self) {
   unsigned int len = self->len;
-  list_node_t *next;
-  list_node_t *curr = self->head;
+  udpdk_list_node_t *next;
+  udpdk_list_node_t *curr = self->head;
 
   while (len--) {
     next = curr->next;
     if (self->free) self->free(curr->val);
-    udpdk_shfree(list_node_t_alloc, curr);
+    udpdk_shfree(udpdk_list_node_t_alloc, curr);
     curr = next;
   }
 
-  udpdk_shfree(list_t_alloc, self);
+  udpdk_shfree(udpdk_list_t_alloc, self);
 }
 
 /*
@@ -53,8 +53,8 @@ list_destroy(list_t *self) {
  * and return the node, NULL on failure.
  */
 
-list_node_t *
-list_rpush(list_t *self, list_node_t *node) {
+udpdk_list_node_t *
+list_rpush(udpdk_list_t *self, udpdk_list_node_t *node) {
   if (!node) return NULL;
 
   if (self->len) {
@@ -75,11 +75,11 @@ list_rpush(list_t *self, list_node_t *node) {
  * Return / detach the last node in the list, or NULL.
  */
 
-list_node_t *
-list_rpop(list_t *self) {
+udpdk_list_node_t *
+list_rpop(udpdk_list_t *self) {
   if (!self->len) return NULL;
 
-  list_node_t *node = self->tail;
+  udpdk_list_node_t *node = self->tail;
 
   if (--self->len) {
     (self->tail = node->prev)->next = NULL;
@@ -95,11 +95,11 @@ list_rpop(list_t *self) {
  * Return / detach the first node in the list, or NULL.
  */
 
-list_node_t *
-list_lpop(list_t *self) {
+udpdk_list_node_t *
+list_lpop(udpdk_list_t *self) {
   if (!self->len) return NULL;
 
-  list_node_t *node = self->head;
+  udpdk_list_node_t *node = self->head;
 
   if (--self->len) {
     (self->head = node->next)->prev = NULL;
@@ -116,8 +116,8 @@ list_lpop(list_t *self) {
  * and return the node, NULL on failure.
  */
 
-list_node_t *
-list_lpush(list_t *self, list_node_t *node) {
+udpdk_list_node_t *
+list_lpush(udpdk_list_t *self, udpdk_list_node_t *node) {
   if (!node) return NULL;
 
   if (self->len) {
@@ -139,8 +139,8 @@ list_lpush(list_t *self, list_node_t *node) {
  * (or first if the only element)
  * and return the node, NULL or failure
  */
-list_node_t *
-list_spush(list_t *self, list_node_t *node) {
+udpdk_list_node_t *
+list_spush(udpdk_list_t *self, udpdk_list_node_t *node) {
   if (!node) return NULL;
 
   if (self->len) {
@@ -161,10 +161,10 @@ list_spush(list_t *self, list_node_t *node) {
  * Return the node associated to val or NULL.
  */
 
-list_node_t *
-list_find(list_t *self, void *val) {
-  list_iterator_t *it = list_iterator_new(self, LIST_HEAD);
-  list_node_t *node;
+udpdk_list_node_t *
+list_find(udpdk_list_t *self, void *val) {
+  udpdk_list_iterator_t *it = list_iterator_new(self, LIST_HEAD);
+  udpdk_list_node_t *node;
 
   while ((node = list_iterator_next(it))) {
     if (self->match) {
@@ -188,9 +188,9 @@ list_find(list_t *self, void *val) {
  * Return the node at the given index or NULL.
  */
 
-list_node_t *
-list_at(list_t *self, int index) {
-  list_direction_t direction = LIST_HEAD;
+udpdk_list_node_t *
+list_at(udpdk_list_t *self, int index) {
+  udpdk_list_direction_t direction = LIST_HEAD;
 
   if (index < 0) {
     direction = LIST_TAIL;
@@ -198,8 +198,8 @@ list_at(list_t *self, int index) {
   }
 
   if ((unsigned)index < self->len) {
-    list_iterator_t *it = list_iterator_new(self, direction);
-    list_node_t *node = list_iterator_next(it);
+    udpdk_list_iterator_t *it = list_iterator_new(self, direction);
+    udpdk_list_node_t *node = list_iterator_next(it);
     while (index--) node = list_iterator_next(it);
     list_iterator_destroy(it);
     return node;
@@ -213,7 +213,7 @@ list_at(list_t *self, int index) {
  */
 
 void
-list_remove(list_t *self, list_node_t *node) {
+list_remove(udpdk_list_t *self, udpdk_list_node_t *node) {
   node->prev
     ? (node->prev->next = node->next)
     : (self->head = node->next);
@@ -224,6 +224,6 @@ list_remove(list_t *self, list_node_t *node) {
 
   if (self->free) self->free(node->val);
 
-  udpdk_shfree(list_node_t_alloc, node);
+  udpdk_shfree(udpdk_list_node_t_alloc, node);
   --self->len;
 }

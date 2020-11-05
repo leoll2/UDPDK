@@ -15,7 +15,7 @@
 #define RTE_LOGTYPE_BTABLE RTE_LOGTYPE_USER1
 
 const void *bind_info_alloc = NULL;
-list_t **sock_bind_table;
+udpdk_list_t **sock_bind_table;
 
 /* Initialize the bindings table */
 void btable_init(void)
@@ -49,8 +49,8 @@ static inline bool btable_can_bind(struct in_addr ip, int port, int opts)
     bool reuse_addr = opts & SO_REUSEADDR;
     bool reuse_port = opts & SO_REUSEPORT;
     bool can_bind = true;
-    list_iterator_t *it;
-    list_node_t *node;
+    udpdk_list_iterator_t *it;
+    udpdk_list_node_t *node;
     unsigned long ip_oth, ip_new;
     // bool oth_reuseaddr;
     bool oth_reuseport;
@@ -92,7 +92,7 @@ static inline bool btable_can_bind(struct in_addr ip, int port, int opts)
 int btable_add_binding(int s, struct in_addr ip, int port, int opts)
 {
     struct bind_info *b;
-    list_node_t *ln;
+    udpdk_list_node_t *ln;
 
     // Check if binding this pair is allowed
     if (!btable_can_bind(ip, port, opts)) {
@@ -127,8 +127,8 @@ int btable_add_binding(int s, struct in_addr ip, int port, int opts)
 
 /* Remove a binding from the port */
 void btable_del_binding(int s, int port) {
-    list_node_t *node;
-    list_iterator_t *it;
+    udpdk_list_node_t *node;
+    udpdk_list_iterator_t *it;
 
     // Remove the binding from the list
     it = list_iterator_new(sock_bind_table[port], LIST_HEAD);
@@ -149,7 +149,7 @@ void btable_del_binding(int s, int port) {
 }
 
 /* Get all the bind_info descriptors of the sockets bound to the given port */
-list_t *btable_get_bindings(int port) {
+udpdk_list_t *btable_get_bindings(int port) {
     return sock_bind_table[port];
 }
 

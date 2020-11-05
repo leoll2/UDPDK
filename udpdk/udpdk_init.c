@@ -41,7 +41,7 @@ extern struct rte_mempool *rx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_direct_pool;
 extern struct rte_mempool *tx_pktmbuf_indirect_pool;
-extern list_t **sock_bind_table;
+extern udpdk_list_t **sock_bind_table;
 extern int primary_argc;
 extern int secondary_argc;
 extern char *primary_argv[MAX_ARGC];
@@ -207,7 +207,7 @@ static int init_udp_bind_table(void)
 {
     const struct rte_memzone *mz;
 
-    mz = rte_memzone_reserve(UDP_BIND_TABLE_NAME, UDP_MAX_PORT * sizeof(struct list_t *), rte_socket_id(), 0);
+    mz = rte_memzone_reserve(UDP_BIND_TABLE_NAME, UDP_MAX_PORT * sizeof(struct udpdk_list_t *), rte_socket_id(), 0);
     if (mz == NULL) {
         RTE_LOG(ERR, INIT, "Cannot allocate shared memory for L4 switching table\n");
         return -1;

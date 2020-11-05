@@ -37,7 +37,7 @@ static volatile int poller_alive = 1;
 
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
-extern list_t **sock_bind_table;
+extern udpdk_list_t **sock_bind_table;
 extern const void *bind_info_alloc;
 
 /* Descriptor of a RX queue */
@@ -350,13 +350,13 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     ip_dst_addr = get_ipv4_dst_addr(ip_hdr);
 
     // Find the sock_ids corresponding to the UDP dst port (L4 switching) and enqueue the packet to its queue
-    list_t *binds = btable_get_bindings(udp_dst_port);
+    udpdk_list_t *binds = btable_get_bindings(udp_dst_port);
     if (binds == NULL) {
         RTE_LOG(WARNING, POLLBODY, "Dropping packet for port %d: no socket bound\n", ntohs(udp_dst_port));
         return;
     }
-    list_iterator_t *it = list_iterator_new(binds, LIST_HEAD);
-    list_node_t *node;
+    udpdk_list_iterator_t *it = list_iterator_new(binds, LIST_HEAD);
+    udpdk_list_node_t *node;
     while ((node = list_iterator_next(it))) {
         unsigned long ip_oth = ((struct bind_info *)(node->val))->ip_addr.s_addr;
         bool oth_reuseaddr = ((struct bind_info *)(node->val))->reuse_addr;
