@@ -2,21 +2,21 @@
 
 <img src="media/UDPDK_light.png" data-canonical-src="media/UDPDK_light.pngg" width="350"/>
 
-***UDPDK*** is a minimal [**UDP**](https://tools.ietf.org/html/rfc768) stack based on [**DPDK**](https://www.dpdk.org/) for fast point-to-point communication.  
-It represents the ideal solution if you want to quickly move packets between two hosts, bypassing the cumbersome kernel stack, yet without disruptive changes to the existing application logic.  
-Indeed, thanks to its POSIX-like API, porting existing applications is usually as simple as renaming a couple of functions<sup>1</sup>.
+***UDPDK*** is a minimal [**UDP**](https://tools.ietf.org/html/rfc768) stack based on [**DPDK**](https://www.dpdk.org/) for fast point-to-point communication between servers.  
+It runs completely in userspace, so that you can move your packets quickly without going through the cumbersome kernel stack.  
+Moreover, thanks to its POSIX-like API, porting existing applications to UDPDK is dead easy!<sup>1</sup>
 
 **What UDPDK is:**
 - A transport-level network stack
-- A POSIX-like implementation of UDP sockets over DPDK
-- A framework for low-latency packet exchanging for critical applications
+- A POSIX-like implementation of UDP sockets on top of DPDK
+- A framework for low-latency packet exchanging
 
 **What UDPDK is NOT:**
 - A complete IP stack
 - A mechanism to interconnect large networks nodes
-- A software running on low-end NICs 
+- A software running on low-end consumer NICs 
 
-<sup>1</sup>*Some options may be unsupported yet.*
+<sup>1</sup>*Some features may be unsupported yet.*
 
 Table of Contents
 =================
