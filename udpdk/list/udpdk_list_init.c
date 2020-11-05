@@ -4,7 +4,6 @@
 extern const void *list_t_alloc;
 extern const void *list_node_t_alloc;
 extern const void *list_iterator_t_alloc;
-extern const void *bind_info_alloc;
 
 void udpdk_list_init(void)
 {
@@ -25,10 +24,6 @@ int udpdk_list_reinit(void)
     }
     list_iterator_t_alloc = udpdk_retrieve_allocator("list_iterator_t_alloc");
     if (list_iterator_t_alloc == NULL) {
-        return -1;
-    }
-    bind_info_alloc = udpdk_retrieve_allocator("bind_info_alloc");
-    if (bind_info_alloc == NULL) {
         return -1;
     }
     return 0;

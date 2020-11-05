@@ -253,6 +253,17 @@ static int init_udp_bind_table(void)
     return 0;
 }
 
+/* Destroy table for UDP port switching */
+static int destroy_udp_bind_table(void)
+{
+    const struct rte_memzone *mz;
+
+    btable_destroy();
+
+    mz = rte_memzone_lookup(UDP_BIND_TABLE_NAME);
+    return rte_memzone_free(mz);
+}
+
 /* Initialize slots to exchange packets between the application and the poller */
 static int init_exchange_slots(void)
 {
@@ -369,6 +380,16 @@ void udpdk_interrupt(int signum)
     interrupted = 1;
 }
 
+static void udpdk_close_all_sockets(void)
+{
+    for (int s = 0; s < NUM_SOCKETS_MAX; s++) {
+        if (exch_zone_desc->slots[s].bound) {
+            RTE_LOG(INFO, CLOSE, "Closing socket %d that was left open\n", s);
+            udpdk_close(s);
+        }
+    }
+}
+
 void udpdk_cleanup(void)
 {
     uint16_t port_id;
@@ -390,5 +411,12 @@ void udpdk_cleanup(void)
         rte_eth_dev_close(port_id);
     }
 
+    // Close all open sockets
+    udpdk_close_all_sockets();
+
+    // Free the bindings table
+    destroy_udp_bind_table();
+
+    // Release linked-list memory allocators
     udpdk_list_deinit();
 }

@@ -38,6 +38,7 @@ static volatile int poller_alive = 1;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern list_t **sock_bind_table;
+extern const void *bind_info_alloc;
 
 /* Descriptor of a RX queue */
 struct rx_queue {
@@ -86,8 +87,14 @@ static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func f
 /* Initialize the allocators */
 static int setup_allocators(void)
 {
+    bind_info_alloc = udpdk_retrieve_allocator("bind_info_alloc");
+    if (bind_info_alloc == NULL) {
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve bind_info shmem allocator\n");
+        return -1;
+    }
+
     if (udpdk_list_reinit() < 0) {
-        RTE_LOG(ERR, POLLINIT, "Cannot retrieve shmem allocators\n");
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve list shmem allocators\n");
         return -1;
     }
     return 0;

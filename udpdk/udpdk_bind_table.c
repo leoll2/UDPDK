@@ -151,3 +151,9 @@ void btable_del_binding(int s, int port) {
 list_t *btable_get_bindings(int port) {
     return sock_bind_table[port];
 }
+
+/* Destroy the bindings table */
+void btable_destroy(void)
+{
+    udpdk_destroy_allocator(bind_info_alloc);
+}
