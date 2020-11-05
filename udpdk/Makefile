@@ -4,25 +4,23 @@
 #
 
 ROOTDIR?=${CURDIR}/..
+DEPSDIR=${ROOTDIR}/deps
 PREFIX=/usr/local
 PREFIX_LIB=${PREFIX}/lib
 PREFIX_INCLUDE=/usr/local/include
 PREFIX_BIN=/usr/local/bin
-UDPDK_VERSION=0.1
+UDPDK_VERSION=1.0
 
 # root is only needed to perform install
 ifneq ($(shell id -u), 0)
-ifeq ($(RTE_SDK),)
-$(error "Please define RTE_SDK environment variable")
-endif
 ifeq ($(RTE_TARGET),)
 $(error "Please define RTE_TARGET environment variable")
 endif
 endif
 
-UDPDK_DPDK=${RTE_SDK}/${RTE_TARGET}
+UDPDK_DPDK=${DEPSDIR}/dpdk/${RTE_TARGET}
 
-INIH=${ROOTDIR}/inih
+INIH=${DEPSDIR}/inih
 
 CFLAGS= -march=native -O2
 CFLAGS+= -Wall -Wno-deprecated-declarations -Werror -Wno-unused-variable
