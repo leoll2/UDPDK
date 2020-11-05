@@ -223,7 +223,7 @@ static void check_port_link_status(uint16_t portid) {
 }
 
 /* Initialize a shared memory region to contain descriptors for the exchange slots */
-static int init_shared_memzone(void)
+static int init_exch_memzone(void)
 {
     const struct rte_memzone *mz;
 
@@ -238,7 +238,15 @@ static int init_shared_memzone(void)
     return 0;
 }
 
-/* Initialize table in shared memory for UDP port switching */
+static int destroy_exch_memzone(void)
+{
+    const struct rte_memzone *mz;
+
+    mz = rte_memzone_lookup(EXCH_MEMZONE_NAME);
+    return rte_memzone_free(mz);
+}
+
+/* Initialize a shared memory region to store the L4 switching table */
 static int init_udp_bind_table(void)
 {
     const struct rte_memzone *mz;
@@ -345,7 +353,7 @@ int udpdk_init(int argc, char *argv[])
         }
 
         // Initialize memzone for exchange
-        retval = init_shared_memzone();
+        retval = init_exch_memzone();
         if (retval < 0) {
             RTE_LOG(ERR, INIT, "Cannot initialize memzone for exchange zone descriptors\n");
             return -1;
@@ -414,8 +422,11 @@ void udpdk_cleanup(void)
     // Close all open sockets
     udpdk_close_all_sockets();
 
-    // Free the bindings table
+    // Free the memory of L4 switching table
     destroy_udp_bind_table();
+ 
+    // Free the memory for exch zone
+    destroy_exch_memzone();
 
     // Release linked-list memory allocators
     udpdk_list_deinit();

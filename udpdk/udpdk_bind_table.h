@@ -20,4 +20,6 @@ void btable_del_binding(int s, int port);
 
 list_t *btable_get_bindings(int port);
 
+void btable_destroy(void);
+
 #endif //UDPDK_BIND_TABLE_H
