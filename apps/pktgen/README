@@ -1,0 +1,8 @@
+Sender:
+    sudo ./pktgen -c ../../config.ini -f send -l 100
+
+Receiver:
+    sudo ./pktgen -c ../../config.ini -f recv
+
+
+Note: '-l' is the length of the whole frame, including MAC, IPv4 and UDP headers
