@@ -43,6 +43,7 @@ UDPDK_CORE_SRCS+=    \
 	udpdk_globals.c  \
 	udpdk_init.c     \
 	udpdk_bind_table.c \
+	udpdk_monitor.c  \
 	udpdk_poller.c   \
 	udpdk_syscall.c  \
 

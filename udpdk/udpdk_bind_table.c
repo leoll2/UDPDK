@@ -88,6 +88,7 @@ static inline bool btable_can_bind(struct in_addr ip, int port, int opts)
     return can_bind;
 }
 
+/* Bind a socket to a (IP, port) pair */
 int btable_add_binding(int s, struct in_addr ip, int port, int opts)
 {
     struct bind_info *b;
@@ -129,7 +130,7 @@ void btable_del_binding(int s, int port) {
     list_node_t *node;
     list_iterator_t *it;
 
-    // Remove the binding from the lsit
+    // Remove the binding from the list
     it = list_iterator_new(sock_bind_table[port], LIST_HEAD);
     while ((node = list_iterator_next(it))) {
         if (((struct bind_info *)(node->val))->sockfd == s) {

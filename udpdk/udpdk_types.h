@@ -27,6 +27,7 @@
 
 enum exch_ring_func {EXCH_RING_RX, EXCH_RING_TX};
 
+/* Descriptor for a binding of a socket to (IP, port) */
 struct bind_info {
     int sockfd;         // socket fd of the (addr, port) pair
     struct in_addr ip_addr;     // IPv4 address associated to the socket
@@ -35,20 +36,23 @@ struct bind_info {
     bool closed;        // mark this binding as closed
 };
 
+/* Descriptor of a socket (current state and options) */
 struct exch_slot_info {
     int used;       // used by an open socket
     int bound;      // used by a socket that did 'bind'
-    int sockfd;     // TODO redundant because it matches the slot index in this implementation
+    int sockfd;     // NOTE: redundant atm because it matches the slot index in the current impl
     int udp_port;   // UDP port associated to the socket (only if bound)
     struct in_addr ip_addr;     // IPv4 address associated to the socket (only if bound)
     int so_options; // socket options
 } __rte_cache_aligned;
 
+/* Descriptor of the zone in shared memory where packets are exchanged between app and poller */
 struct exch_zone_info {
     uint64_t n_zones_active;
     struct exch_slot_info slots[NUM_SOCKETS_MAX];
 };
 
+/* Descriptor of the exchange zone queues and buffers for a socket */
 struct exch_slot {
     struct rte_ring *rx_q;                      // RX queue
     struct rte_ring *tx_q;                      // TX queue
@@ -56,6 +60,7 @@ struct exch_slot {
     uint16_t rx_count;                          // current number of packets in the rx buffer
 } __rte_cache_aligned;
 
+/* Global configuration (parsed from file) */
 typedef struct {
     struct rte_ether_addr src_mac_addr;
     struct rte_ether_addr dst_mac_addr;

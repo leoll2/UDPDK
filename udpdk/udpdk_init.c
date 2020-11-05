@@ -25,6 +25,7 @@
 #include "udpdk_args.h"
 #include "udpdk_constants.h"
 #include "udpdk_bind_table.h"
+#include "udpdk_monitor.h"
 #include "udpdk_poller.h"
 #include "udpdk_types.h"
 
@@ -63,7 +64,7 @@ static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func f
 static int init_mbuf_pools(void)
 {
     const unsigned int num_mbufs_rx = NUM_RX_DESC_DEFAULT;
-    const unsigned int num_mbufs_tx = NUM_TX_DESC_DEFAULT;  // TODO why sized like this?
+    const unsigned int num_mbufs_tx = NUM_TX_DESC_DEFAULT;  // TODO size properly
     const unsigned int num_mbufs_cache = 2 * MBUF_CACHE_SIZE;
     const unsigned int num_mbufs = num_mbufs_rx + num_mbufs_tx + num_mbufs_cache;
     const int socket = rte_socket_id();
@@ -76,21 +77,21 @@ static int init_mbuf_pools(void)
     }
 
     tx_pktmbuf_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
-            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the app (sendto) TODO size properly
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the app (sendto) // TODO size properly
     if (tx_pktmbuf_pool == NULL) {
         RTE_LOG(ERR, INIT, "Failed to allocate TX pool: %s\n", rte_strerror(rte_errno));
         return -1;
     }
 
     tx_pktmbuf_direct_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_DIRECT_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
-            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the poller       TODO size properly
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the poller       // TODO size properly
     if (tx_pktmbuf_direct_pool == NULL) {
         RTE_LOG(ERR, INIT, "Failed to allocate TX direct pool: %s\n", rte_strerror(rte_errno));
         return -1;
     }
 
     tx_pktmbuf_indirect_pool = rte_pktmbuf_pool_create(PKTMBUF_POOL_INDIRECT_TX_NAME, num_mbufs, MBUF_CACHE_SIZE, 0,
-            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the poller TODO size properly
+            RTE_MBUF_DEFAULT_BUF_SIZE, socket);  // used by the poller      // TODO size properly
     if (tx_pktmbuf_indirect_pool == NULL) {
         RTE_LOG(ERR, INIT, "Failed to allocate TX indirect pool: %s\n", rte_strerror(rte_errno));
         return -1;
@@ -173,53 +174,6 @@ static int init_port(uint16_t port_num)
 
     RTE_LOG(INFO, INIT, "Initialized port %d.\n", port_num);
     return 0;
-}
-
-static void check_port_link_status(uint16_t portid) {
-#define CHECK_INTERVAL 100  // 100ms
-#define MAX_CHECK_TIME 90   // how many times
-    uint8_t count, all_ports_up, print_flag = 0;
-    struct rte_eth_link link;
-    int ret;
-
-    RTE_LOG(INFO, INIT, "Checking link status of port %d.\n", portid);
-    for (count = 0; count <= MAX_CHECK_TIME; count++) {
-        all_ports_up = 1;
-        memset(&link, 0, sizeof(link));
-        ret = rte_eth_link_get_nowait(portid, &link);
-        if (ret < 0) {
-            all_ports_up = 0;
-            if (print_flag == 1)
-                RTE_LOG(WARNING, INIT, "Port %u link get failed: %s\n", portid, rte_strerror(-ret));
-            continue;
-        }
-        if (print_flag == 1) {
-            if (link.link_status) {
-                RTE_LOG(INFO, INIT, "Port %d Link Up - speed %u Mbps - %s\n", portid, (unsigned) link.link_speed,
-                        (link.link_duplex == ETH_LINK_FULL_DUPLEX) ? ("full-duplex") : ("half-duplex\n"));
-                break;
-            } else {
-                RTE_LOG(INFO, INIT, "Port %d Link Down\n", (uint8_t) portid);
-            }
-            continue;
-        }
-        if (link.link_status == ETH_LINK_DOWN) {
-            all_ports_up = 0;
-            break;
-        }
-        if (print_flag == 1)
-            return;
-
-        if (all_ports_up == 0) {
-            printf(".");
-            fflush(stdout);
-            rte_delay_ms(CHECK_INTERVAL);
-        }
-
-        if (all_ports_up == 1 || count == (MAX_CHECK_TIME - 1)) {
-            print_flag = 1;
-        }
-    }
 }
 
 /* Initialize a shared memory region to contain descriptors for the exchange slots */
