@@ -114,7 +114,7 @@ static int setup_queues(void)
     frag_cycles = (rte_get_tsc_hz() + MS_PER_S - 1) / MS_PER_S * MAX_FLOW_TTL;
 
     // Pool of mbufs for RX
-    // TODO actually unused because pool is needed only to initialize a queue, which is done in 'application' anyway
+    // NOTE actually unused because pool is needed only to initialize a queue, which is done in 'application' anyway
     qconf->rx_queue.pool = rte_mempool_lookup(PKTMBUF_POOL_RX_NAME);
     if (qconf->rx_queue.pool == NULL) {
         RTE_LOG(ERR, POLLINIT, "Cannot retrieve pool of mbufs for RX\n");
@@ -147,6 +147,7 @@ static int setup_queues(void)
     return 0;
 }
 
+/* Setup the data structures needed to exchange packets with the app */
 static int setup_exch_zone(void)
 {
     uint16_t i;
@@ -186,6 +187,7 @@ static int setup_exch_zone(void)
     return 0;
 }
 
+/* Retrieve the L4 switching table (initialized by the primary) */
 static int setup_udp_table(void)
 {
     const struct rte_memzone *sock_bind_table_mz;
@@ -200,7 +202,7 @@ static int setup_udp_table(void)
     return 0;
 }
 
-/* Initialize UDPDK packet poller (runs in a separate process) */
+/* Initialize UDPDK packet poller (which runs in a separate process w.r.t. app) */
 int poller_init(int argc, char *argv[])
 {
     int retval;
@@ -288,6 +290,7 @@ static inline unsigned long get_ipv4_dst_addr(struct rte_ipv4_hdr *ip_hdr)
     return ip_hdr->dst_addr;
 }
 
+// TODO reassemble() is given too much responsibility: decompose into multiple functions
 static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queue,
                               struct lcore_queue_conf *qconf, uint64_t tms)
 {
@@ -487,7 +490,7 @@ void poller_body(void)
             tx_count = 0;
         }
 
-        // Receive packets from DPDK port 0 (queue 0)   TODO use more queues
+        // Receive packets from DPDK port 0 (queue 0)   TODO use more queues (RSS)
         rx_count = rte_eth_rx_burst(PORT_RX, QUEUE_RX, rx_mbuf_table, RX_MBUF_TABLE_SIZE);
 
         if (likely(rx_count > 0)) {

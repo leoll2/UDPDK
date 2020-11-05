@@ -2,6 +2,7 @@
 // Created by leoll2 on 9/25/20.
 // Copyright (c) 2020 Leonardo Lai. All rights reserved.
 //
+
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +47,7 @@ extern int secondary_argc;
 extern char *primary_argv[MAX_ARGC];
 extern char *secondary_argv[MAX_ARGC];
 static pid_t poller_pid;
+
 
 /* Get the name of the rings of exchange slots */
 static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func func)
@@ -226,10 +228,9 @@ static int destroy_udp_bind_table(void)
     return rte_memzone_free(mz);
 }
 
-/* Initialize slots to exchange packets between the application and the poller */
+/* Initialize (statically) the slots to exchange packets between the application and the poller */
 static int init_exchange_slots(void)
 {
-    // TODO allocate slots dynamically in udpdk_socket() instead of pre-allocating all them statically
     unsigned i;
     unsigned socket_id;
     const char *q_name;
@@ -262,7 +263,7 @@ int udpdk_init(int argc, char *argv[])
 {
     int retval;
 
-    // Initialize UDPDK
+    // Parse and initialize the arguments
     if (udpdk_parse_args(argc, argv) < 0) {  // initializes primary and secondary argc argv
         RTE_LOG(ERR, INIT, "Invalid arguments for UDPDK\n");
         return -1;
@@ -336,12 +337,14 @@ int udpdk_init(int argc, char *argv[])
     return 0;
 }
 
+/* Signal UDPDK poller to stop */
 void udpdk_interrupt(int signum)
 {
     RTE_LOG(INFO, INTR, "Killing the poller process (%d)...\n", poller_pid);
     interrupted = 1;
 }
 
+/* Close all the open sockets */
 static void udpdk_close_all_sockets(void)
 {
     for (int s = 0; s < NUM_SOCKETS_MAX; s++) {
@@ -352,6 +355,7 @@ static void udpdk_close_all_sockets(void)
     }
 }
 
+/* Release all the memory and data structures used by UDPDK */
 void udpdk_cleanup(void)
 {
     uint16_t port_id;
