@@ -4,7 +4,6 @@
 //
 
 #include "udpdk_constants.h"
-#include "udpdk_lookup_table.h"
 #include "udpdk_types.h"
 
 volatile int interrupted = 0;
@@ -26,8 +25,6 @@ struct rte_mempool *tx_pktmbuf_pool = NULL;
 struct rte_mempool *tx_pktmbuf_direct_pool = NULL;
 
 struct rte_mempool *tx_pktmbuf_indirect_pool = NULL;
-
-htable_item *udp_port_table = NULL;
 
 struct exch_zone_info *exch_zone_desc = NULL;
 

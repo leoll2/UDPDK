@@ -10,6 +10,7 @@
 #define MIN(a,b) ((a) < (b) ? a : b)
 
 #define NUM_SOCKETS_MAX     1024
+#define UDP_MAX_PORT        65536
 
 /* DPDK ports */
 #define PORT_RX     0
@@ -51,7 +52,7 @@
 #define EXCH_BUF_SIZE       32
 
 /* L4 port switching */
-#define UDP_PORT_TABLE_NAME     "UDPDK_UDP_port_table"
+#define UDP_BIND_TABLE_NAME "UDPDK_btable"
 
 /* IPv4 header */
 #define IP_DEFTTL       64

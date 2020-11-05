@@ -24,6 +24,12 @@ void udpdk_cleanup(void);
 
 int udpdk_socket(int domain, int type, int protocol);
 
+int udpdk_getsockopt(int sockfd, int level, int optname, void *optval,
+        socklen_t *optlen);
+
+int udpdk_setsockopt(int sockfd, int level, int optname,
+        const void *optval, socklen_t optlen);
+
 int udpdk_bind(int s, const struct sockaddr *addr, socklen_t addrlen);
 
 ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,

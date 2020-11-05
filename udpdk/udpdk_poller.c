@@ -25,7 +25,8 @@
 #include <rte_string_fns.h>
 
 #include "udpdk_constants.h"
-#include "udpdk_lookup_table.h"
+#include "udpdk_bind_table.h"
+#include "udpdk_shmalloc.h"
 #include "udpdk_types.h"
 
 #define RTE_LOGTYPE_POLLBODY RTE_LOGTYPE_USER1
@@ -36,7 +37,8 @@ static volatile int poller_alive = 1;
 
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
-extern htable_item *udp_port_table;
+extern list_t **sock_bind_table;
+extern const void *bind_info_alloc;
 
 /* Descriptor of a RX queue */
 struct rx_queue {
@@ -80,6 +82,22 @@ static inline const char * get_exch_ring_name(unsigned id, enum exch_ring_func f
         snprintf(buffer, sizeof(buffer), EXCH_TX_RING_NAME, id);
     }
     return buffer;
+}
+
+/* Initialize the allocators */
+static int setup_allocators(void)
+{
+    bind_info_alloc = udpdk_retrieve_allocator("bind_info_alloc");
+    if (bind_info_alloc == NULL) {
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve bind_info shmem allocator\n");
+        return -1;
+    }
+
+    if (udpdk_list_reinit() < 0) {
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve list shmem allocators\n");
+        return -1;
+    }
+    return 0;
 }
 
 /* Initialize the queues for this lcore */
@@ -170,14 +188,14 @@ static int setup_exch_zone(void)
 
 static int setup_udp_table(void)
 {
-    const struct rte_memzone *udp_port_table_mz;
+    const struct rte_memzone *sock_bind_table_mz;
 
-    udp_port_table_mz = rte_memzone_lookup(UDP_PORT_TABLE_NAME);
-    if (udp_port_table_mz == NULL) {
-        RTE_LOG(ERR, POLLINIT, "Cannot retrieve exchange memzone descriptor\n");
+    sock_bind_table_mz = rte_memzone_lookup(UDP_BIND_TABLE_NAME);
+    if (sock_bind_table_mz == NULL) {
+        RTE_LOG(ERR, POLLINIT, "Cannot retrieve L4 switching table memory\n");
         return -1;
     }
-    udp_port_table = udp_port_table_mz->addr;
+    sock_bind_table = sock_bind_table_mz->addr;
 
     return 0;
 }
@@ -191,6 +209,13 @@ int poller_init(int argc, char *argv[])
     retval = rte_eal_init(argc, argv);
     if (retval < 0) {
         RTE_LOG(ERR, POLLINIT, "Cannot initialize EAL for poller\n");
+        return -1;
+    }
+
+    // Setup memory allocators
+    retval = setup_allocators();
+    if (retval < 0) {
+        RTE_LOG(ERR, POLLINIT, "Cannot setup allocators for poller\n");
         return -1;
     }
 
@@ -258,6 +283,11 @@ static inline uint16_t get_udp_dst_port(struct rte_udp_hdr *udp_hdr)
     return udp_hdr->dst_port;
 }
 
+static inline unsigned long get_ipv4_dst_addr(struct rte_ipv4_hdr *ip_hdr)
+{
+    return ip_hdr->dst_addr;
+}
+
 static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queue,
                               struct lcore_queue_conf *qconf, uint64_t tms)
 {
@@ -267,7 +297,10 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
     struct rte_ip_frag_death_row *dr;
     struct rx_queue *rxq;
     uint16_t udp_dst_port;
+    unsigned long ip_dst_addr;
     int sock_id;
+    bool delivered_once = false;
+    bool delivered_last = false;
 
     rxq = &qconf->rx_queue;
 
@@ -310,17 +343,47 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
         RTE_LOG(WARNING, POLLBODY, "Received non-UDP packet.\n");
         return;
     }
-    udp_dst_port = get_udp_dst_port(
-            (struct rte_udp_hdr *)((unsigned char *)ip_hdr + sizeof(struct rte_ipv4_hdr)));
+    udp_dst_port = get_udp_dst_port((struct rte_udp_hdr *)(ip_hdr + 1));
+    ip_dst_addr = get_ipv4_dst_addr(ip_hdr);
 
-    // Find the sock_id corresponding to the UDP dst port (L4 switching) and enqueue the packet to its queue
-    sock_id = htable_lookup(udp_port_table, udp_dst_port);
-    if (sock_id < 0 || sock_id >= NUM_SOCKETS_MAX) {
-        errno = EINVAL;
-        RTE_LOG(ERR, POLLBODY, "Invalid L4 port mapping: port %d maps to sock_id %d\n", udp_dst_port, sock_id);
+    // Find the sock_ids corresponding to the UDP dst port (L4 switching) and enqueue the packet to its queue
+    list_t *binds = btable_get_bindings(udp_dst_port);
+    if (binds == NULL) {
+        RTE_LOG(WARNING, POLLBODY, "Dropping packet for port %d: no socket bound\n", ntohs(udp_dst_port));
         return;
     }
-    enqueue_rx_packet(sock_id, m);
+    list_iterator_t *it = list_iterator_new(binds, LIST_HEAD);
+    list_node_t *node;
+    while ((node = list_iterator_next(it))) {
+        unsigned long ip_oth = ((struct bind_info *)(node->val))->ip_addr.s_addr;
+        bool oth_reuseaddr = ((struct bind_info *)(node->val))->reuse_addr;
+        bool oth_reuseport = ((struct bind_info *)(node->val))->reuse_port;
+        // TODO the semantic should be more complex actually:
+        //   if dest unicast and SO_REUSEPORT, should load balance
+        //   if dest broadcast and SO_REUSEADDR or SO_REUSEPORT, should deliver to all
+        // If matching
+        if (likely((ip_dst_addr == ip_oth) || (ip_oth == INADDR_ANY))) {
+            // Deliver to this socket
+            enqueue_rx_packet(((struct bind_info *)(node->val))->sockfd, m);
+            delivered_once = true;
+            // If other socket may exist on the same port, keep scanning
+            if (oth_reuseaddr || oth_reuseport) {
+                m = rte_pktmbuf_clone(m, rxq->pool);
+                delivered_last = false;
+                continue;
+            } else {
+                delivered_last = true;
+                break;
+            }
+        }
+    }
+    if (!delivered_last) {
+        rte_pktmbuf_free(m);
+    }
+    if (!delivered_once) {
+        RTE_LOG(WARNING, POLLBODY, "Dropped packet to port %d: no socket matching\n", ntohs(udp_dst_port));
+    }
+    list_iterator_destroy(it);
 }
 
 static inline void flush_tx_table(struct rte_mbuf **tx_mbuf_table, uint16_t tx_count)

@@ -20,10 +20,11 @@
 #include <rte_memory.h>
 #include <rte_memzone.h>
 
+#include "udpdk_list.h"
 #include "udpdk_api.h"
 #include "udpdk_args.h"
 #include "udpdk_constants.h"
-#include "udpdk_lookup_table.h"
+#include "udpdk_bind_table.h"
 #include "udpdk_poller.h"
 #include "udpdk_types.h"
 
@@ -34,11 +35,11 @@
 extern int interrupted;
 extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
-extern htable_item *udp_port_table;
 extern struct rte_mempool *rx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_pool;
 extern struct rte_mempool *tx_pktmbuf_direct_pool;
 extern struct rte_mempool *tx_pktmbuf_indirect_pool;
+extern list_t **sock_bind_table;
 extern int primary_argc;
 extern int secondary_argc;
 extern char *primary_argv[MAX_ARGC];
@@ -222,7 +223,7 @@ static void check_port_link_status(uint16_t portid) {
 }
 
 /* Initialize a shared memory region to contain descriptors for the exchange slots */
-static int init_shared_memzone(void)
+static int init_exch_memzone(void)
 {
     const struct rte_memzone *mz;
 
@@ -237,19 +238,38 @@ static int init_shared_memzone(void)
     return 0;
 }
 
-/* Initialize table in shared memory for UDP port switching */
-static int init_udp_table(void)
+static int destroy_exch_memzone(void)
 {
     const struct rte_memzone *mz;
 
-    mz = rte_memzone_reserve(UDP_PORT_TABLE_NAME, NUM_SOCKETS_MAX * sizeof(htable_item), rte_socket_id(), 0);
+    mz = rte_memzone_lookup(EXCH_MEMZONE_NAME);
+    return rte_memzone_free(mz);
+}
+
+/* Initialize a shared memory region to store the L4 switching table */
+static int init_udp_bind_table(void)
+{
+    const struct rte_memzone *mz;
+
+    mz = rte_memzone_reserve(UDP_BIND_TABLE_NAME, UDP_MAX_PORT * sizeof(struct list_t *), rte_socket_id(), 0);
     if (mz == NULL) {
-        RTE_LOG(ERR, INIT, "Cannot allocate shared memory for UDP port switching table\n");
+        RTE_LOG(ERR, INIT, "Cannot allocate shared memory for L4 switching table\n");
         return -1;
     }
-    udp_port_table = mz->addr;
-    htable_init(udp_port_table);
+    sock_bind_table = mz->addr;
+    btable_init();
     return 0;
+}
+
+/* Destroy table for UDP port switching */
+static int destroy_udp_bind_table(void)
+{
+    const struct rte_memzone *mz;
+
+    btable_destroy();
+
+    mz = rte_memzone_lookup(UDP_BIND_TABLE_NAME);
+    return rte_memzone_free(mz);
 }
 
 /* Initialize slots to exchange packets between the application and the poller */
@@ -303,6 +323,9 @@ int udpdk_init(int argc, char *argv[])
             return -1;
         }
 
+        // Initialize the list allocators
+        udpdk_list_init();
+
         // Initialize pools of mbuf
         retval = init_mbuf_pools();
         if (retval < 0) {
@@ -330,13 +353,13 @@ int udpdk_init(int argc, char *argv[])
         }
 
         // Initialize memzone for exchange
-        retval = init_shared_memzone();
+        retval = init_exch_memzone();
         if (retval < 0) {
             RTE_LOG(ERR, INIT, "Cannot initialize memzone for exchange zone descriptors\n");
             return -1;
         }
 
-        retval = init_udp_table();
+        retval = init_udp_bind_table();
         if (retval < 0) {
             RTE_LOG(ERR, INIT, "Cannot create table for UDP port switching\n");
             return -1;
@@ -365,6 +388,16 @@ void udpdk_interrupt(int signum)
     interrupted = 1;
 }
 
+static void udpdk_close_all_sockets(void)
+{
+    for (int s = 0; s < NUM_SOCKETS_MAX; s++) {
+        if (exch_zone_desc->slots[s].bound) {
+            RTE_LOG(INFO, CLOSE, "Closing socket %d that was left open\n", s);
+            udpdk_close(s);
+        }
+    }
+}
+
 void udpdk_cleanup(void)
 {
     uint16_t port_id;
@@ -385,4 +418,16 @@ void udpdk_cleanup(void)
         rte_eth_dev_stop(port_id);
         rte_eth_dev_close(port_id);
     }
+
+    // Close all open sockets
+    udpdk_close_all_sockets();
+
+    // Free the memory of L4 switching table
+    destroy_udp_bind_table();
+ 
+    // Free the memory for exch zone
+    destroy_exch_memzone();
+
+    // Release linked-list memory allocators
+    udpdk_list_deinit();
 }
