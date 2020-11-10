@@ -357,7 +357,8 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
 
     // Put the packet in the tx_ring
     if (rte_ring_enqueue(exch_slots[sockfd].tx_q, (void *)pkt) < 0) {
-        RTE_LOG(ERR, SYSCALL, "Sendto failed to put packet in the TX ring\n");
+        RTE_LOG(ERR, SYSCALL, "Sendto failed to put packet in the TX ring\n  Total: %d  Free: %d\n",
+                rte_ring_count(exch_slots[sockfd].tx_q), rte_ring_free_count(exch_slots[sockfd].tx_q));
         errno = ENOBUFS;
         rte_pktmbuf_free(pkt);
         return -1;

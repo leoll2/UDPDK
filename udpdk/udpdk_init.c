@@ -105,7 +105,6 @@ static int init_mbuf_pools(void)
 /* Initialize a DPDK port */
 static int init_port(uint16_t port_num)
 {
-    // TODO add support for multiple rings
     const struct rte_eth_conf port_conf = {
         .rxmode = {
             .mq_mode = ETH_MQ_RX_RSS,
@@ -119,6 +118,7 @@ static int init_port(uint16_t port_num)
             .offloads = DEV_TX_OFFLOAD_MULTI_SEGS,
         }
     };
+    // TODO add RSS support
     const uint16_t rx_rings = 1;
     const uint16_t tx_rings = 1;
     uint16_t rx_ring_size = NUM_RX_DESC_DEFAULT;

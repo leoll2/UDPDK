@@ -17,8 +17,8 @@
 #define PORT_TX     0
 #define QUEUE_RX    0
 #define QUEUE_TX    0
-#define NUM_RX_DESC_DEFAULT 1024
-#define NUM_TX_DESC_DEFAULT 1024
+#define NUM_RX_DESC_DEFAULT 2048 
+#define NUM_TX_DESC_DEFAULT 2048 
 #define MBUF_CACHE_SIZE     512
 #define PKTMBUF_POOL_RX_NAME            "UDPDK_mbuf_pool_RX"
 #define PKTMBUF_POOL_TX_NAME            "UDPDK_mbuf_pool_TX"
@@ -46,7 +46,7 @@
 /* Exchange memzone */
 #define EXCH_MEMZONE_NAME   "UDPDK_exchange_desc"
 #define EXCH_SLOTS_NAME     "UDPDK_exchange_slots"
-#define EXCH_RING_SIZE      128
+#define EXCH_RING_SIZE      2048
 #define EXCH_RX_RING_NAME   "UDPDK_exchange_ring_%u_RX"
 #define EXCH_TX_RING_NAME   "UDPDK_exchange_ring_%u_TX"
 #define EXCH_BUF_SIZE       32

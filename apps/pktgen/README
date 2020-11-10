@@ -5,4 +5,5 @@ Receiver:
     sudo ./pktgen -c ../../config.ini -f recv
 
 
-Note: '-l' is the length of the whole frame, including MAC, IPv4 and UDP headers
+Note: '-l' is the UDP payload length, excluding the MAC, IPv4 and UDP headers
+      If you want to include them in the stats, add the '-h' option.
