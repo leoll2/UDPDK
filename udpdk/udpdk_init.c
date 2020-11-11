@@ -105,10 +105,14 @@ static int init_mbuf_pools(void)
 /* Initialize a DPDK port */
 static int init_port(uint16_t port_num)
 {
+    struct rte_eth_dev_info dev_info;
+
+    rte_eth_dev_info_get(port_num, &dev_info);
+ 
     const struct rte_eth_conf port_conf = {
         .rxmode = {
             .mq_mode = ETH_MQ_RX_RSS,
-            .max_rx_pkt_len = JUMBO_FRAME_MAX_SIZE,
+            .max_rx_pkt_len = RTE_MIN(JUMBO_FRAME_MAX_SIZE, dev_info.max_rx_pktlen),
             .split_hdr_size = 0,
             .offloads = (DEV_RX_OFFLOAD_CHECKSUM |
                          DEV_RX_OFFLOAD_SCATTER |
