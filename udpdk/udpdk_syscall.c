@@ -353,7 +353,7 @@ ssize_t udpdk_sendto(int sockfd, const void *buf, size_t len, int flags,
 
     // Write payload
     udp_data = (void *)(udp_hdr + 1);
-    memcpy(udp_data, buf, len);
+    rte_memcpy(udp_data, buf, len);
 
     // Put the packet in the tx_ring
     if (rte_ring_enqueue(exch_slots[sockfd].tx_q, (void *)pkt) < 0) {
@@ -449,7 +449,7 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
         } else {
             eff_addrlen = *addrlen;
         }
-        memcpy((void *)src_addr, &addr_in, eff_addrlen);
+        rte_memcpy((void *)src_addr, &addr_in, eff_addrlen);
         *addrlen = eff_addrlen;
     }
 
@@ -471,7 +471,7 @@ ssize_t udpdk_recvfrom(int sockfd, void *buf, size_t len, int flags,
             eff_len = bytes_left;
         }
         // Copy payload into buffer
-        memcpy(buf, rte_pktmbuf_mtod(seg, void *) + offset_payload, eff_len);
+        rte_memcpy(buf, rte_pktmbuf_mtod(seg, void *) + offset_payload, eff_len);
         // Adjust pointers and counters
         buf += eff_len;
         bytes_left -= eff_len;
