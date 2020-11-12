@@ -86,6 +86,7 @@ clean:
 	rm -f libudpdk.a
 	rm -f ${OBJS} ${PROGRAM}
 
+.PHONY: install
 install:
 	rm -f ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	rm -f ${PREFIX_LIB}/libudpdk.a
@@ -99,6 +100,7 @@ install:
 	cp -f list/udpdk_*.h ${PREFIX_INCLUDE}/
 	cp -f shmalloc/udpdk_*.h ${PREFIX_INCLUDE}/
 
+.PHONY: uninstall
 uninstall:
 	rm -f ${PREFIX_LIB}/libudpdk.a.${UDPDK_VERSION}
 	rm -f ${PREFIX_LIB}/libudpdk.a
