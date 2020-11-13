@@ -1,5 +1,5 @@
 Sender:
-    sudo ./pktgen -c ../../config.ini -f send -l 100
+    sudo ./pktgen -c ../../config.ini -f send -l 100 -r 10000
 
 Receiver:
     sudo ./pktgen -c ../../config.ini -f recv

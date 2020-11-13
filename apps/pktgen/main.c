@@ -33,6 +33,8 @@
 typedef struct stats_t {
     uint64_t bytes_sent;
     uint64_t bytes_recv;
+    uint64_t bytes_sent_prev;
+    uint64_t bytes_recv_prev;
 } stats_t;
 
 const char mydata[2048] = {
@@ -259,15 +261,24 @@ static void reset_stats(stats_t *stats)
 {
     stats->bytes_sent = 0;
     stats->bytes_recv = 0;
+    stats->bytes_sent_prev = 0;
+    stats->bytes_recv_prev = 0;
 }
 
 static void *stats_routine(void *arg)
 {
     stats_t *stats = (stats_t *)arg;
+    uint64_t tx_bps = 0, rx_bps = 0;
+
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
     while (1) {
-        printf("Sent: %ld bps |  Recv: %ld bps\n", stats->bytes_sent, stats->bytes_recv);
+        tx_bps = stats->bytes_sent - stats->bytes_sent_prev;
+        rx_bps = stats->bytes_recv - stats->bytes_recv_prev;
+        printf("Sent: %ld bytes  %ld bps  |  Recv: %ld bytes  %ld bps\n",
+                stats->bytes_sent, tx_bps, stats->bytes_recv, rx_bps);
+        stats->bytes_sent_prev = stats->bytes_sent;
+        stats->bytes_recv_prev = stats->bytes_recv;
         sleep(1);
     }
     return NULL;
