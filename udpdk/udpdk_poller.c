@@ -27,6 +27,7 @@
 #include "udpdk_constants.h"
 #include "udpdk_bind_table.h"
 #include "udpdk_shmalloc.h"
+#include "udpdk_sync.h"
 #include "udpdk_types.h"
 
 #define RTE_LOGTYPE_POLLBODY RTE_LOGTYPE_USER1
@@ -39,6 +40,9 @@ extern struct exch_zone_info *exch_zone_desc;
 extern struct exch_slot *exch_slots;
 extern udpdk_list_t **sock_bind_table;
 extern const void *bind_info_alloc;
+extern struct rte_ring *ipc_app_to_pol;
+extern struct rte_ring *ipc_pol_to_app;
+extern struct rte_mempool *ipc_msg_pool;
 
 /* Descriptor of a RX queue */
 struct rx_queue {
@@ -214,6 +218,16 @@ int poller_init(int argc, char *argv[])
         return -1;
     }
 
+    // Initialize the IPC channel to synchronize with the app
+    while (retrieve_ipc_channel() < 0) {
+        RTE_LOG(INFO, POLLINIT, "Waiting to initialize IPC...\n");
+        sleep(1);
+    }
+    RTE_LOG(INFO, POLLINIT, "IPC initialized\n");
+
+    // Wait for a synchronization signal from the application process before proceeding
+    ipc_wait_for_app();
+
     // Setup memory allocators
     retval = setup_allocators();
     if (retval < 0) {
@@ -245,6 +259,9 @@ int poller_init(int argc, char *argv[])
     // Setup signals for termination
     signal(SIGINT, poller_sighandler);
     signal(SIGTERM, poller_sighandler);
+
+    // Notify the primary about the successful initialization
+    ipc_notify_to_app();
 
     return 0;
 }

@@ -29,3 +29,9 @@ struct rte_mempool *tx_pktmbuf_indirect_pool = NULL;
 struct exch_zone_info *exch_zone_desc = NULL;
 
 struct exch_slot *exch_slots = NULL;
+
+struct rte_ring *ipc_app_to_pol = NULL;
+
+struct rte_ring *ipc_pol_to_app = NULL;
+
+struct rte_mempool *ipc_msg_pool = NULL;

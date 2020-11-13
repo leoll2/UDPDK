@@ -46,6 +46,7 @@ UDPDK_CORE_SRCS+=    \
 	udpdk_monitor.c  \
 	udpdk_poller.c   \
 	udpdk_syscall.c  \
+    udpdk_sync.c     \
 
 UDPDK_LIST_SRCS+=    \
     list/udpdk_list.c      \

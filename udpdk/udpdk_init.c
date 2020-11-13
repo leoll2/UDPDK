@@ -28,6 +28,7 @@
 #include "udpdk_bind_table.h"
 #include "udpdk_monitor.h"
 #include "udpdk_poller.h"
+#include "udpdk_sync.h"
 #include "udpdk_types.h"
 
 #define RTE_LOGTYPE_INIT RTE_LOGTYPE_USER1
@@ -46,6 +47,9 @@ extern int primary_argc;
 extern int secondary_argc;
 extern char *primary_argv[MAX_ARGC];
 extern char *secondary_argv[MAX_ARGC];
+extern struct rte_ring *ipc_app_to_pol;
+extern struct rte_ring *ipc_pol_to_app;
+extern struct rte_mempool *ipc_msg_pool;
 static pid_t poller_pid;
 
 
@@ -311,6 +315,13 @@ int udpdk_init(int argc, char *argv[])
             RTE_LOG(INFO, INIT, "Using the same port for RX and TX\n");
         }
 
+        // Initialize IPC channel to synchronize with the poller
+        retval = init_ipc_channel();
+        if (retval < 0) {
+            RTE_LOG(ERR, INIT, "Cannot initialize IPC channel for app-poller synchronization\n");
+            return -1;
+        }
+
         // Initialize memzone for exchange
         retval = init_exch_memzone();
         if (retval < 0) {
@@ -329,8 +340,14 @@ int udpdk_init(int argc, char *argv[])
             RTE_LOG(ERR, INIT, "Cannot initialize exchange slots\n");
             return -1;
         }
+
+        // Let the poller process resume initialization
+        ipc_notify_to_poller();
+        
+        // Wait for the poller to be fully initialized
+        RTE_LOG(INFO, INIT, "Waiting for the poller to complete its inialization...\n");
+        ipc_wait_for_poller();
     } else {  // child -> packet poller
-        sleep(1);   // TODO use some synchronization mechanism between primary and secondary
         if (poller_init(secondary_argc, (char **)secondary_argv) < 0) {
             RTE_LOG(INFO, INIT, "Poller initialization failed\n");
             return -1;

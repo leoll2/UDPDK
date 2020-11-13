@@ -176,7 +176,6 @@ int main(int argc, char *argv[])
         goto pingpong_end;
         return -1;
     }
-    sleep(2);
     printf("App: UDPDK Intialized\n");
 
     // Parse app-specific arguments
