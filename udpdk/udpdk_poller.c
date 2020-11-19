@@ -218,9 +218,17 @@ int poller_init(int argc, char *argv[])
         return -1;
     }
 
+    // Setup signals for termination
+    signal(SIGINT, poller_sighandler);
+    signal(SIGTERM, poller_sighandler);
+
     // Initialize the IPC channel to synchronize with the app
     while (retrieve_ipc_channel() < 0) {
         RTE_LOG(INFO, POLLINIT, "Waiting to initialize IPC...\n");
+        if (!poller_alive) {
+            RTE_LOG(INFO, POLLINIT, "Poller exiting prematurely due to interrupt\n");
+            return -1;
+        }
         sleep(1);
     }
     RTE_LOG(INFO, POLLINIT, "IPC initialized\n");
@@ -255,10 +263,6 @@ int poller_init(int argc, char *argv[])
         RTE_LOG(ERR, POLLINIT, "Cannot setup table for UDP port switching\n");
         return -1;
     }
-
-    // Setup signals for termination
-    signal(SIGINT, poller_sighandler);
-    signal(SIGTERM, poller_sighandler);
 
     // Notify the primary about the successful initialization
     ipc_notify_to_app();

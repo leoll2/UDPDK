@@ -38,7 +38,7 @@
 #define MAX_PACKET_FRAG     RTE_LIBRTE_IP_FRAG_MAX_FRAG
 
 /* Packet poller */
-#define BURST_SIZE          32
+#define BURST_SIZE          128
 #define RX_MBUF_TABLE_SIZE  BURST_SIZE
 #define TX_MBUF_TABLE_SIZE  (2 * MAX(BURST_SIZE, MAX_PACKET_FRAG))
 #define PREFETCH_OFFSET     4
@@ -49,7 +49,7 @@
 #define EXCH_RING_SIZE      2048
 #define EXCH_RX_RING_NAME   "UDPDK_exchange_ring_%u_RX"
 #define EXCH_TX_RING_NAME   "UDPDK_exchange_ring_%u_TX"
-#define EXCH_BUF_SIZE       32
+#define EXCH_BUF_SIZE       BURST_SIZE
 
 /* L4 port switching */
 #define UDP_BIND_TABLE_NAME "UDPDK_btable"
