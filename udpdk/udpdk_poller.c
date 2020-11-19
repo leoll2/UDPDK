@@ -26,6 +26,7 @@
 
 #include "udpdk_constants.h"
 #include "udpdk_bind_table.h"
+#include "udpdk_dump.h"
 #include "udpdk_shmalloc.h"
 #include "udpdk_sync.h"
 #include "udpdk_types.h"
@@ -359,7 +360,8 @@ static inline void reassemble(struct rte_mbuf *m, uint16_t portid, uint32_t queu
             }
         }
     } else {
-        RTE_LOG(WARNING, POLLBODY, "Received non-IPv4 packet.\n");
+        RTE_LOG(WARNING, POLLBODY, "Received non-IPv4 packet, showing content below:\n");
+        udpdk_dump_mbuf(m);
         return;
     }
 

@@ -40,6 +40,7 @@ UDPDK_C= ${CC} -c $(DPDK_CFLAGS) $(UDPDK_CFLAGS) ${CFLAGS} ${WERROR} $<
 
 UDPDK_CORE_SRCS+=    \
 	udpdk_args.c     \
+	udpdk_dump.c     \
 	udpdk_globals.c  \
 	udpdk_init.c     \
 	udpdk_bind_table.c \

@@ -8,3 +8,4 @@ udpdk_bind
 udpdk_sendto
 udpdk_recvfrom
 udpdk_close
+udpdk_dump_payload
