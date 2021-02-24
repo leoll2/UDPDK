@@ -27,6 +27,10 @@ typedef enum {PING, PONG} app_mode;
 
 static app_mode mode = PING;
 static volatile int app_alive = 1;
+static int log_enabled = 0;
+static char *log_file;
+static FILE *log;
+static unsigned delay = 1000000;
 static const char *progname;
 
 static void signal_handler(int signum)
@@ -43,6 +47,14 @@ static void ping_body(void)
     int n;
 
     printf("PING mode\n");
+
+    // Open log file
+    if (log_enabled) {
+        log = fopen(log_file, "w");
+        if (log == NULL) {
+            printf("Error opening log file: %s\n", log_file);
+        }
+    }
 
     // Create a socket
     int sock;
@@ -83,9 +95,12 @@ static void ping_body(void)
                 ts.tv_sec--;
             }
             printf("Received pong; delta = %d.%09d seconds\n", (int)ts.tv_sec, (int)ts.tv_nsec);
+            if (log_file) {
+                fprintf(log, " %d%09d\n", (int)ts.tv_sec, (int)ts.tv_nsec);
+            }
         }
 
-        sleep(1);
+        usleep(delay);
     }
 }
 
@@ -126,8 +141,9 @@ static void pong_body(void)
 static void usage(void)
 {
     printf("%s -c CONFIG -f FUNCTION \n"
-            " -c CONFIG: .ini configuration file"
+            " -c CONFIG: .ini configuration file\n"
             " -f FUNCTION: 'ping' or 'pong'\n"
+            " -d DELAY: delay (microseconds) between two ping invocations\n"
             , progname);
 }
 
@@ -138,7 +154,7 @@ static int parse_app_args(int argc, char *argv[])
 
     progname = argv[0];
 
-    while ((c = getopt(argc, argv, "c:f:")) != -1) {
+    while ((c = getopt(argc, argv, "c:f:d:l:")) != -1) {
         switch (c) {
             case 'c':
                 // this is for the .ini cfg file needed by DPDK, not by the app
@@ -151,6 +167,17 @@ static int parse_app_args(int argc, char *argv[])
                 } else {
                     fprintf(stderr, "Unsupported function %s (must be 'ping' or 'pong')\n", optarg);
                     return -1;
+                }
+                break;
+            case 'd':
+                delay = atoi(optarg);
+                break;
+            case 'l':
+                log_enabled = 1;
+                log_file = strdup(optarg);
+                log = fopen(log_file, "w");
+                if (log == NULL) {
+                    printf("Error opening log file: %s\n", log_file);
                 }
                 break;
             default:
@@ -194,6 +221,9 @@ int main(int argc, char *argv[])
     }
 
 pingpong_end:
+    if (log_enabled) {
+        fclose(log);
+    }
     udpdk_interrupt(0);
     udpdk_cleanup();
     return 0;

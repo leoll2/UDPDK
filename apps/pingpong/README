@@ -1,5 +1,5 @@
 Ping host:
-    sudo ./pingpong -c ../../config.ini -f ping
+    sudo ./pingpong -c ../../config.ini -f ping -d 10000 -l pingpong.log
 
 Pong host:
     sudo ./pingpong -c ../../config.ini -f pong
