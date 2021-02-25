@@ -22,6 +22,7 @@
 #define PORT_PING   10000
 #define PORT_PONG   10001
 #define IP_PONG     "172.31.100.1"
+#define MAX_SAMPLES 100000
 
 typedef enum {PING, PONG} app_mode;
 
@@ -31,6 +32,8 @@ static int log_enabled = 0;
 static char *log_file;
 static FILE *log;
 static unsigned delay = 1000000;
+static unsigned samples[MAX_SAMPLES];
+static unsigned n_samples = 0;
 static const char *progname;
 
 static void signal_handler(int signum)
@@ -73,10 +76,10 @@ static void ping_body(void)
     }
 
     while (app_alive) {
-        printf(("Application loop\n"));
 
         // Send ping
-        printf("Sending ping\n");
+        if (!log_enabled)
+            printf("Sending ping\n");
         destaddr.sin_family = AF_INET;
         destaddr.sin_addr.s_addr = inet_addr(IP_PONG);
         destaddr.sin_port = htons(PORT_PONG);
@@ -94,9 +97,10 @@ static void ping_body(void)
                 ts.tv_nsec += 1000000000;
                 ts.tv_sec--;
             }
-            printf("Received pong; delta = %d.%09d seconds\n", (int)ts.tv_sec, (int)ts.tv_nsec);
-            if (log_file) {
-                fprintf(log, " %d%09d\n", (int)ts.tv_sec, (int)ts.tv_nsec);
+            if (log_enabled) {
+                samples[n_samples++] = (int)ts.tv_sec * 1000000000 + (int)ts.tv_nsec;
+            } else {
+                printf("Received pong; delta = %d.%09d seconds\n", (int)ts.tv_sec, (int)ts.tv_nsec);
             }
         }
 
@@ -222,6 +226,10 @@ int main(int argc, char *argv[])
 
 pingpong_end:
     if (log_enabled) {
+        printf("Dumping %d samples to log...\n", n_samples);
+        for (unsigned i = 0; i < n_samples; ++i)
+            fprintf(log, "%d\n", samples[i]);
+        printf("Closing log...\n");
         fclose(log);
     }
     udpdk_interrupt(0);
