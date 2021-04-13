@@ -112,6 +112,41 @@ The `apps/` folder contains two simple examples: a [ping-pong](apps/pingpong) an
 
 UDPDK runs in two separate processes: the primary is the one containing the application logic (i.e. where syscalls are called), while the secondary (*poller*) continuously polls the NIC to send and receive data. The packets are exchanged between the application and the poller through shared memory, using lockless ring queues.
 
+## Performance
+
+We compare UDPDK against standard UDP sockets in terms of throughput and latency.
+
+**Environment**  
+
+Two identical servers are connected point-to-point on a 10G interface. Their specs are:
+
+*CPU:* Intel Xeon E5-2640 @2.4GHz  
+*RAM:* 64GB  
+*OS:* Ubuntu 18.04  
+*Kernel:* 4.15.0  
+*NIC:* Intel X710 DA2 10GbE  
+*NIC driver:* VFIO (DPDK) or i40e (normal sockets)
+
+**Throughput**
+
+We measure the maximum throughput achieved varying the packet size.  
+The latter is inclusive of the UDP, IP and MAC headers.
+
+As shown in the picture, UDPDK is up to **18x better** than traditional sockets.  
+It should be noted that UDPDK saturates the 10G connection, which unfortunately is all we had: a 40G inferface would make it definitely shine!
+
+![Throughput chart](media/throughput_benchmark.png)
+
+**Latency**
+
+We measure the latency and its jitter.  
+Again, UDPDK proves to be an order of magnitude better than standard sockets.
+
+| | UDPDK | Standard |
+| --- | --- | --- |
+*Mean (μs)* | 13.92 | 116.57 |
+*Std (μs)*  | 0.74 | 18.49 |
+
 ## License
 
 UDPDK is released under [BSD 3-Clause license](LICENSE).
