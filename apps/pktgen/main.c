@@ -31,6 +31,10 @@
 #define UDP_HDR_LEN 8
 
 typedef struct stats_t {
+    uint64_t pkts_sent;
+    uint64_t pkts_recv;
+    uint64_t pkts_sent_prev;
+    uint64_t pkts_recv_prev;
     uint64_t bytes_sent;
     uint64_t bytes_recv;
     uint64_t bytes_sent_prev;
@@ -152,6 +156,7 @@ static void send_body(stats_t *stats)
         ret = udpdk_sendto(sock, (void *)mydata, pktlen, 0,
                 (const struct sockaddr *) &destaddr, sizeof(destaddr));
         if (ret > 0) {
+            stats->pkts_sent++;
             stats->bytes_sent += ret;
             if (hdr_stats) {
                 stats->bytes_sent += ETH_HDR_LEN + IP_HDR_LEN + UDP_HDR_LEN;
@@ -191,6 +196,7 @@ static void recv_body(stats_t *stats)
         int len = sizeof(cliaddr);
         n = udpdk_recvfrom(sock, (void *)buf, 2048, 0, ( struct sockaddr *) &cliaddr, &len);
         if (n > 0) {
+            stats->pkts_recv++;
             stats->bytes_recv += n;
             if (hdr_stats) {
                 stats->bytes_recv += ETH_HDR_LEN + IP_HDR_LEN + UDP_HDR_LEN;
@@ -210,7 +216,7 @@ static void usage(void)
     printf("%s -c CONFIG -f FUNCTION [-r RATE] [-l LEN] [-h] [-d] \n"
             " -c CONFIG: .ini configuration file"
             " -f FUNCTION: 'send' or 'recv'\n"
-            " -r RATE: desired transmission rate in bytes"
+            " -r RATE: desired transmission rate (pps)"
             " -s SIZE: payload size (length)\n"
             " -l LOGFILE: path to the logfile\n"
             " -h consider also the MAC, IPv4 and UDP headers bytes for tx_rate and stats\n"
@@ -271,6 +277,10 @@ static int parse_app_args(int argc, char *argv[])
 
 static void reset_stats(stats_t *stats)
 {
+    stats->pkts_sent = 0;
+    stats->pkts_recv = 0;
+    stats->pkts_sent_prev = 0;
+    stats->pkts_recv_prev = 0;
     stats->bytes_sent = 0;
     stats->bytes_recv = 0;
     stats->bytes_sent_prev = 0;
@@ -280,20 +290,27 @@ static void reset_stats(stats_t *stats)
 static void *stats_routine(void *arg)
 {
     stats_t *stats = (stats_t *)arg;
+    uint64_t tx_pps = 0, rx_pps = 0;
     uint64_t tx_bps = 0, rx_bps = 0;
 
     pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, NULL);
 
     while (1) {
-        tx_bps = stats->bytes_sent - stats->bytes_sent_prev;
-        rx_bps = stats->bytes_recv - stats->bytes_recv_prev;
+        tx_pps = stats->pkts_sent - stats->pkts_sent_prev;
+        rx_pps = stats->pkts_recv - stats->pkts_recv_prev;
+        tx_bps = (stats->bytes_sent - stats->bytes_sent_prev) * 8;
+        rx_bps = (stats->bytes_recv - stats->bytes_recv_prev) * 8;
         if (log_enabled) {
-            fprintf(log, "%ld %ld %ld %ld\n",
-                    stats->bytes_sent, tx_bps, stats->bytes_recv, rx_bps);
+            fprintf(log, "%ld %ld %ld %ld %ld %ld %ld %ld\n",
+                    stats->pkts_sent, tx_pps, stats->bytes_sent, tx_bps,
+                    stats->pkts_recv, rx_pps, stats->bytes_recv, rx_bps);
         } else {
-            printf("Sent: %ld bytes  %ld bps  |  Recv: %ld bytes  %ld bps\n",
-                    stats->bytes_sent, tx_bps, stats->bytes_recv, rx_bps);
+            printf("Sent: %ld pkts  %ld pps  %ld bytes  %ld bps  |  Recv: %ld pkts  %ld pps  %ld bytes  %ld bps\n",
+                    stats->pkts_sent, tx_pps, stats->bytes_sent, tx_bps,
+                    stats->pkts_recv, rx_pps, stats->bytes_recv, rx_bps);
         }
+        stats->pkts_sent_prev = stats->pkts_sent;
+        stats->pkts_recv_prev = stats->pkts_recv;
         stats->bytes_sent_prev = stats->bytes_sent;
         stats->bytes_recv_prev = stats->bytes_recv;
         sleep(1);
