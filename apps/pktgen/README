@@ -1,9 +1,9 @@
 Sender:
-    sudo ./pktgen -c ../../config.ini -f send -l 100 -r 10000
+    sudo ./pktgen -c ../../config.ini -f send -s 100 -r 10000 -l pktgen-send.log
 
 Receiver:
-    sudo ./pktgen -c ../../config.ini -f recv
+    sudo ./pktgen -c ../../config.ini -f recv -l pktgen-recv.log
 
 
-Note: '-l' is the UDP payload length, excluding the MAC, IPv4 and UDP headers
+Note: '-s' is the UDP payload length, excluding the MAC, IPv4 and UDP headers
       If you want to include them in the stats, add the '-h' option.

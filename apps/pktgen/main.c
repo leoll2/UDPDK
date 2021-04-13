@@ -52,6 +52,9 @@ static bool dump = false;
 static uint64_t tx_rate = 0;
 static struct timespec tx_period;
 static volatile bool app_alive = true;
+static int log_enabled = 0;
+static char *log_file;
+static FILE *log;
 static const char *progname;
 
 static void signal_handler(int signum)
@@ -208,7 +211,8 @@ static void usage(void)
             " -c CONFIG: .ini configuration file"
             " -f FUNCTION: 'send' or 'recv'\n"
             " -r RATE: desired transmission rate in bytes"
-            " -l LEN: payload length\n"
+            " -s SIZE: payload size (length)\n"
+            " -l LOGFILE: path to the logfile\n"
             " -h consider also the MAC, IPv4 and UDP headers bytes for tx_rate and stats\n"
             " -d dump the payload (ASCII)\n"
             , progname);
@@ -221,7 +225,7 @@ static int parse_app_args(int argc, char *argv[])
 
     progname = argv[0];
 
-    while ((c = getopt(argc, argv, "c:f:r:l:hd")) != -1) {
+    while ((c = getopt(argc, argv, "c:f:r:s:l:hd")) != -1) {
         switch (c) {
             case 'c':
                 // this is for the .ini cfg file needed by DPDK, not by the app
@@ -239,8 +243,16 @@ static int parse_app_args(int argc, char *argv[])
             case 'r':
                 tx_rate = atoi(optarg);
                 break;
-            case 'l':
+            case 's':
                 pktlen = atoi(optarg);
+                break;
+            case 'l':
+                log_enabled = 1;
+                log_file = strdup(optarg);
+                log = fopen(log_file, "w");
+                if (log == NULL) {
+                    printf("Error opening log file: %s\n", log_file);
+                }
                 break;
             case 'h':
                 hdr_stats = true;
@@ -275,8 +287,13 @@ static void *stats_routine(void *arg)
     while (1) {
         tx_bps = stats->bytes_sent - stats->bytes_sent_prev;
         rx_bps = stats->bytes_recv - stats->bytes_recv_prev;
-        printf("Sent: %ld bytes  %ld bps  |  Recv: %ld bytes  %ld bps\n",
-                stats->bytes_sent, tx_bps, stats->bytes_recv, rx_bps);
+        if (log_enabled) {
+            fprintf(log, "%ld %ld %ld %ld\n",
+                    stats->bytes_sent, tx_bps, stats->bytes_recv, rx_bps);
+        } else {
+            printf("Sent: %ld bytes  %ld bps  |  Recv: %ld bytes  %ld bps\n",
+                    stats->bytes_sent, tx_bps, stats->bytes_recv, rx_bps);
+        }
         stats->bytes_sent_prev = stats->bytes_sent;
         stats->bytes_recv_prev = stats->bytes_recv;
         sleep(1);
@@ -310,6 +327,14 @@ int main(int argc, char *argv[])
         return -1;
     }
 
+    // Open log file
+    if (log_enabled) {
+        log = fopen(log_file, "w");
+        if (log == NULL) {
+            printf("Error opening log file: %s\n", log_file);
+        }
+    }
+
     // Start the thread to visualize statistics in real time
     reset_stats(&stats);
     if (pthread_create(&stats_thr, NULL, stats_routine, &stats)) {
@@ -327,6 +352,11 @@ pktgen_end:
     // Halt the stats thread
     pthread_cancel(stats_thr);
     pthread_join(stats_thr, NULL);
+    // Close the log
+    if (log_enabled) {
+        printf("Closing log...\n");
+        fclose(log);
+    }
     // Cleanup
     udpdk_interrupt(0);
     udpdk_cleanup();
