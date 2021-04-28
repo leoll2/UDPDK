@@ -1,6 +1,18 @@
-# UDPDK
+<p align="center">
+  <img width="40%" src="media/UDPDK_light.png" />
+</p>
 
-<img src="media/UDPDK_light.png" data-canonical-src="media/UDPDK_light.pngg" width="350"/>
+--------------------------------------------------------------------------------
+
+</p>
+<p align="center">
+    <a href="https://opensource.org/licenses/BSD-3-Clause" alt="License">
+        <img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" /></a>
+    <a href="https://en.wikipedia.org/wiki/C_(programming_language)" alt="C">
+        <img src="https://img.shields.io/badge/C-blue.svg?style=flat&logo=" /></a>
+    <a href="https://www.dpdk.org/" alt="DPDK">
+        <img src="https://img.shields.io/badge/DPDK-blue.svg?style=flat&logo=dpdk" /></a>
+</p>
 
 ***UDPDK*** is a minimal [**UDP**](https://tools.ietf.org/html/rfc768) stack based on [**DPDK**](https://www.dpdk.org/) for fast point-to-point communication between servers.  
 It runs completely in userspace, so that you can move your packets quickly without going through the cumbersome kernel stack.  
@@ -28,13 +40,14 @@ Table of Contents
       * [API](#api)
       * [Examples](#examples)
       * [How it works](#how-it-works)
+      * [Performance](#performance)
       * [License](#license)
       * [Contributing](#contributing)
 
 ## Requirements
 
 In order to use UDPDK, your machines must be equipped with DPDK-enabled NICs; these are typically found in servers, not in laptops and desktop machines.
-The list of hardware officially supported by DPDK is available [here](https://core.dpdk.org/supported/). Specifically, UDPDK has been developed and tested on *Intel X710-DA2* with *igb_uio* and *vfio* drivers; other devices may still work, possibly with minor changes to the framework.
+The list of hardware officially supported by DPDK is available [here](https://core.dpdk.org/supported/). Specifically, UDPDK has been developed and tested on *Intel X710-DA2* with *igb_uio* and *vfio* drivers; other devices should work as long as DPDK supports them.
 
 ## Install Dependencies
 
@@ -60,6 +73,9 @@ From the menu, do the following:
 2. Load the `vfio` module
 3. Configure hugepages (e.g. 1024M for each NUMA node)
 4. Bind the NIC to vfio driver, specifying its PCI address
+
+> :warning: **If you use the VFIO driver**, then you must enable the IOMMU in your system.  
+> To enable it, open `/etc/default/grub`, add the flag `intel_iommu=on` in `GRUB_CMDLINE_LINUX_DEFAULT`, then `sudo update-grub` and finally reboot.
 
 **inih**
 
