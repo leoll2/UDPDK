@@ -110,9 +110,28 @@ static int init_mbuf_pools(void)
 static int init_port(uint16_t port_num)
 {
     struct rte_eth_dev_info dev_info;
+    // TODO add RSS support
+    const uint16_t rx_rings = 1;
+    const uint16_t tx_rings = 1;
+    uint16_t rx_ring_size = NUM_RX_DESC_DEFAULT;
+    uint16_t tx_ring_size = NUM_TX_DESC_DEFAULT;
+    uint16_t q;
+    int retval;
 
-    rte_eth_dev_info_get(port_num, &dev_info);
- 
+    // Check port validity
+    if (!rte_eth_dev_is_valid_port(port_num)) {
+        RTE_LOG(ERR, INIT, "Port %d is invalid (out of range or not attached)\n", port_num);
+        return -1;
+    }
+
+    // Retrieve port info
+    retval = rte_eth_dev_info_get(port_num, &dev_info);
+    if (retval != 0) {
+        RTE_LOG(ERR, INIT, "Error during getting device (port %u) info: %s\n",
+                port_num, strerror(-retval));
+        return retval;
+    }
+
     const struct rte_eth_conf port_conf = {
         .rxmode = {
             .mq_mode = ETH_MQ_RX_RSS,
@@ -126,13 +145,6 @@ static int init_port(uint16_t port_num)
             .offloads = DEV_TX_OFFLOAD_MULTI_SEGS,
         }
     };
-    // TODO add RSS support
-    const uint16_t rx_rings = 1;
-    const uint16_t tx_rings = 1;
-    uint16_t rx_ring_size = NUM_RX_DESC_DEFAULT;
-    uint16_t tx_ring_size = NUM_TX_DESC_DEFAULT;
-    uint16_t q;
-    int retval;
 
     // Configure mode and number of rings
     retval = rte_eth_dev_configure(port_num, rx_rings, tx_rings, &port_conf);
