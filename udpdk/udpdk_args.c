@@ -18,6 +18,8 @@ extern char *primary_argv[MAX_ARGC];
 extern char *secondary_argv[MAX_ARGC];
 static char *progname;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-truncation"
 static int parse_handler(void* configuration, const char* section, const char* name, const char* value) {
 #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     if (MATCH("port0", "mac_addr")) {
@@ -47,6 +49,7 @@ static int parse_handler(void* configuration, const char* section, const char* n
     }
     return 1;
 }
+#pragma GCC diagnostic pop
 
 static int setup_primary_secondary_args(int argc, char *argv[])
 {
