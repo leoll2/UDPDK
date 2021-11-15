@@ -6,6 +6,12 @@
 
 </p>
 <p align="center">
+    <a href="http://retis.santannapisa.it/~tommaso/publications/IEEE-NFVSDN-2021.pdf" alt="paper">
+        <b>[Paper]</b></a>
+    <a href="https://youtu.be/x3j3taB3MYo" alt="paper">
+        <b>[Video]</b></a>
+</p>
+<p align="center">
     <a href="https://opensource.org/licenses/BSD-3-Clause" alt="License">
         <img src="https://img.shields.io/badge/License-BSD%203--Clause-blue.svg" /></a>
     <a href="https://en.wikipedia.org/wiki/C_(programming_language)" alt="C">
@@ -13,6 +19,7 @@
     <a href="https://www.dpdk.org/" alt="DPDK">
         <img src="https://img.shields.io/badge/DPDK-blue.svg?style=flat&logo=dpdk" /></a>
 </p>
+
 
 ***UDPDK*** is a minimal [**UDP**](https://tools.ietf.org/html/rfc768) stack based on [**DPDK**](https://www.dpdk.org/) for fast point-to-point communication between servers.  
 It runs completely in userspace, so that you can move your packets quickly without going through the cumbersome kernel stack.  
@@ -42,6 +49,7 @@ Table of Contents
       * [How it works](#how-it-works)
       * [Performance](#performance)
       * [License](#license)
+      * [Citing](#citing)
       * [Contributing](#contributing)
 
 ## Requirements
@@ -165,7 +173,13 @@ Again, UDPDK proves to be an order of magnitude better than standard sockets.
 
 ## License
 
-UDPDK is released under [BSD 3-Clause license](LICENSE).
+The code of UDPDK is released under [BSD 3-Clause license](LICENSE).
+
+## Citing
+
+This work has been presented at [IEEE NFV-SDN 2021](https://nfvsdn2021.ieee-nfvsdn.org/), the 7th IEEE Conference on Network Functions Virtualization and Software-Defined Networking. The authors are: L. Lai, G. Ara, T. Cucinotta, K. Kondepu, L. Valcarenghi.
+
+> Lai, Leonardo, et al. "Ultra-low Latency NFV Services Using DPDK" 2021 IEEE Conference on Network Function Virtualization and Software Defined Networks (NFV-SDN). IEEE, 2021.
 
 ## Contributing
 
